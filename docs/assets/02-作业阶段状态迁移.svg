@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 448" width="760" height="448" font-family="'Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9a988f"/></marker></defs>
+<rect width="760" height="448" fill="#ffffff"/>
+<text x="24" y="34" font-size="15" font-weight="600" fill="#1f1e1d" text-anchor="start">规划就绪是作业的中心：清洗完成或停止后都回到这里</text>
+<rect x="36.0" y="80.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="104" y="101" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">无模型</text>
+<text x="104" y="118" font-size="11.5" fill="#6b6a66" text-anchor="middle">NO_MODEL</text>
+<rect x="212.0" y="80.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="280" y="101" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">扫描中</text>
+<text x="280" y="118" font-size="11.5" fill="#6b6a66" text-anchor="middle">SCANNING</text>
+<rect x="388.0" y="80.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="456" y="101" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">重建中</text>
+<text x="456" y="118" font-size="11.5" fill="#6b6a66" text-anchor="middle">RECONSTRUCTING</text>
+<rect x="564.0" y="80.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="632" y="101" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">模型就绪</text>
+<text x="632" y="118" font-size="11.5" fill="#6b6a66" text-anchor="middle">MODEL_READY</text>
+<rect x="564.0" y="216.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="632" y="237" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">规划中</text>
+<text x="632" y="254" font-size="11.5" fill="#6b6a66" text-anchor="middle">PLANNING</text>
+<rect x="388.0" y="216.0" width="136" height="48" rx="8" fill="#e3ecfa" stroke="#2f6fd6" stroke-width="2"/>
+<text x="456" y="237" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">规划就绪</text>
+<text x="456" y="254" font-size="11.5" fill="#6b6a66" text-anchor="middle">PLAN_READY</text>
+<rect x="388.0" y="336.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="456" y="357" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">执行中</text>
+<text x="456" y="374" font-size="11.5" fill="#6b6a66" text-anchor="middle">EXECUTING</text>
+<rect x="564.0" y="336.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="632" y="357" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">已暂停</text>
+<text x="632" y="374" font-size="11.5" fill="#6b6a66" text-anchor="middle">PAUSED</text>
+<rect x="212.0" y="336.0" width="136" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="280" y="357" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">停止中</text>
+<text x="280" y="374" font-size="11.5" fill="#6b6a66" text-anchor="middle">STOPPING</text>
+<path d="M172 104 L212 104" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M348 104 L388 104" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M524 104 L564 104" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M430 128 L430 170 L104 170 L104 128" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M280 128 L280 170" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<path d="M616 128 L616 216" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M648 216 L648 128" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M564 232 L524 232" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M524 248 L564 248" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M440 264 L440 336" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M472 336 L472 264" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M524 352 L564 352" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M564 368 L524 368" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M388 360 L348 360" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M632 384 L632 420 L280 420 L280 384" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M280 336 L280 240 L388 240" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<text x="192" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">开始扫描</text>
+<text x="368" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">扫描完成</text>
+<text x="544" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">重建完成</text>
+<text x="192" y="162" font-size="11.5" fill="#6b6a66" text-anchor="middle">扫描或重建失败</text>
+<text x="608" y="176" font-size="11.5" fill="#6b6a66" text-anchor="end">开始规划</text>
+<text x="656" y="176" font-size="11.5" fill="#6b6a66" text-anchor="start">规划失败</text>
+<text x="544" y="206" font-size="11.5" fill="#6b6a66" text-anchor="middle">规划完成</text>
+<text x="544" y="282" font-size="11.5" fill="#6b6a66" text-anchor="middle">重新规划</text>
+<text x="432" y="304" font-size="11.5" fill="#6b6a66" text-anchor="end">开始清洗</text>
+<text x="480" y="304" font-size="11.5" fill="#6b6a66" text-anchor="start">清洗完成</text>
+<text x="288" y="296" font-size="11.5" fill="#6b6a66" text-anchor="start">停止完成</text>
+<text x="544" y="328" font-size="11.5" fill="#6b6a66" text-anchor="middle">暂停</text>
+<text x="544" y="402" font-size="11.5" fill="#6b6a66" text-anchor="middle">继续</text>
+<text x="368" y="328" font-size="11.5" fill="#6b6a66" text-anchor="middle">停止</text>
+<text x="456" y="414" font-size="11.5" fill="#6b6a66" text-anchor="middle">停止</text>
+</svg>
