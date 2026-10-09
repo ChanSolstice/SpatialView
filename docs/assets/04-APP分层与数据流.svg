@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 448" width="760" height="448" font-family="'Noto Sans CJK SC','PingFang SC','Microsoft YaHei',sans-serif">
+<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#9a988f"/></marker></defs>
+<rect width="760" height="448" fill="#ffffff"/>
+<text x="24" y="34" font-size="15" font-weight="600" fill="#1f1e1d" text-anchor="start">状态从左向右单向流动；界面和场景只读 store，指令经 ros 模块发出</text>
+<rect x="24" y="64" width="128" height="296" rx="8" fill="#f3f2ee" stroke="#9a988f" stroke-width="1.25"/>
+<text x="88" y="88" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">服务端</text>
+<rect x="36" y="104" width="104" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="88" y="124" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">状态 Topic</text>
+<text x="88" y="141" font-size="11.5" fill="#6b6a66" text-anchor="middle">system_state</text>
+<rect x="36" y="168" width="104" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="88" y="188" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">指令 Service</text>
+<text x="88" y="205" font-size="11.5" fill="#6b6a66" text-anchor="middle">6 个</text>
+<rect x="36" y="280" width="104" height="48" rx="8" fill="none" stroke="#9a988f" stroke-width="1.25"/>
+<text x="88" y="300" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">HTTP 文件</text>
+<text x="88" y="317" font-size="11.5" fill="#6b6a66" text-anchor="middle">GLB · 规划 JSON</text>
+<rect x="184" y="64" width="552" height="360" rx="8" fill="#f3f2ee" stroke="#9a988f" stroke-width="1.25"/>
+<text x="460" y="88" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">SpatialView APP</text>
+<rect x="200" y="104" width="152" height="112" rx="8" fill="#ffffff" stroke="#9a988f" stroke-width="1.25"/>
+<text x="276" y="128" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">ros</text>
+<text x="276" y="150" font-size="11.5" fill="#1f1e1d" text-anchor="middle">连接 · 断线检测 · 重连</text>
+<text x="276" y="168" font-size="11.5" fill="#1f1e1d" text-anchor="middle">seq / session 过滤</text>
+<text x="276" y="186" font-size="11.5" fill="#1f1e1d" text-anchor="middle">指令：在途锁 · 超时</text>
+<text x="276" y="204" font-size="11.5" fill="#1f1e1d" text-anchor="middle">急停快速通道</text>
+<rect x="200" y="264" width="152" height="80" rx="8" fill="#ffffff" stroke="#9a988f" stroke-width="1.25"/>
+<text x="276" y="288" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">assets</text>
+<text x="276" y="310" font-size="11.5" fill="#1f1e1d" text-anchor="middle">下载 · Worker 解析</text>
+<text x="276" y="328" font-size="11.5" fill="#1f1e1d" text-anchor="middle">校验 · 释放旧资源</text>
+<rect x="384" y="104" width="160" height="240" rx="8" fill="#e3ecfa" stroke="#2f6fd6" stroke-width="2"/>
+<text x="464" y="128" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">store（Zustand）</text>
+<text x="464" y="160" font-size="11.5" fill="#1f1e1d" text-anchor="middle">服务端状态镜像</text>
+<text x="464" y="176" font-size="11.5" fill="#6b6a66" text-anchor="middle">只有 ros 写入</text>
+<text x="464" y="208" font-size="11.5" fill="#1f1e1d" text-anchor="middle">已加载的模型与规划</text>
+<text x="464" y="224" font-size="11.5" fill="#6b6a66" text-anchor="middle">只有 assets 写入</text>
+<text x="464" y="256" font-size="11.5" fill="#1f1e1d" text-anchor="middle">本地界面状态</text>
+<text x="464" y="272" font-size="11.5" fill="#6b6a66" text-anchor="middle">模式 · 选面 · 动画 · 弹窗</text>
+<text x="464" y="304" font-size="11.5" fill="#1f1e1d" text-anchor="middle">派生：按钮可用性</text>
+<text x="464" y="320" font-size="11.5" fill="#6b6a66" text-anchor="middle">domain 纯函数计算</text>
+<rect x="576" y="104" width="144" height="104" rx="8" fill="#ffffff" stroke="#9a988f" stroke-width="1.25"/>
+<text x="648" y="128" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">scene</text>
+<text x="648" y="150" font-size="11.5" fill="#6b6a66" text-anchor="middle">react-three-fiber</text>
+<text x="648" y="172" font-size="11.5" fill="#1f1e1d" text-anchor="middle">工件 · 路径 · 地面</text>
+<text x="648" y="190" font-size="11.5" fill="#1f1e1d" text-anchor="middle">机械臂 · 轨迹动画</text>
+<rect x="576" y="240" width="144" height="104" rx="8" fill="#ffffff" stroke="#9a988f" stroke-width="1.25"/>
+<text x="648" y="264" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">ui</text>
+<text x="648" y="286" font-size="11.5" fill="#6b6a66" text-anchor="middle">React</text>
+<text x="648" y="308" font-size="11.5" fill="#1f1e1d" text-anchor="middle">Status Bar · 按钮栏</text>
+<text x="648" y="326" font-size="11.5" fill="#1f1e1d" text-anchor="middle">弹窗 · 告警 · 工程入口</text>
+<rect x="200" y="376" width="520" height="32" rx="8" fill="#ffffff" stroke="#9a988f" stroke-width="1.25"/>
+<text x="460" y="397" font-size="11.5" fill="#1f1e1d" text-anchor="middle">config · platform：配置合并、Preferences、前后台、返回键、屏幕常亮</text>
+<path d="M140 128 L200 128" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M140 192 L200 192" fill="none" stroke="#9a988f" stroke-width="1.25" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<path d="M140 304 L200 304" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M352 160 L384 160" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M352 304 L384 304" fill="none" stroke="#9a988f" stroke-width="1.25" marker-start="url(#arrow)" marker-end="url(#arrow)"/>
+<path d="M544 156 L576 156" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M544 292 L576 292" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<path d="M648 344 L648 358 L368 358 L368 204 L352 204" fill="none" stroke="#9a988f" stroke-width="1.25" marker-end="url(#arrow)"/>
+<text x="368" y="150" font-size="11.5" fill="#6b6a66" text-anchor="middle">状态</text>
+<text x="508" y="372" font-size="11.5" fill="#6b6a66" text-anchor="middle">指令</text>
+</svg>
