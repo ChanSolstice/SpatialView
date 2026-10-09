@@ -48,7 +48,7 @@
 <text x="192" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">开始扫描</text>
 <text x="368" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">扫描完成</text>
 <text x="544" y="70" font-size="11.5" fill="#6b6a66" text-anchor="middle">重建完成</text>
-<text x="192" y="162" font-size="11.5" fill="#6b6a66" text-anchor="middle">扫描或重建失败</text>
+<text x="192" y="162" font-size="11.5" fill="#6b6a66" text-anchor="middle">失败或中断</text>
 <text x="608" y="176" font-size="11.5" fill="#6b6a66" text-anchor="end">开始规划</text>
 <text x="656" y="176" font-size="11.5" fill="#6b6a66" text-anchor="start">规划失败</text>
 <text x="544" y="206" font-size="11.5" fill="#6b6a66" text-anchor="middle">规划完成</text>
