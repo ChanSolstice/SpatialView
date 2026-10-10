@@ -26,7 +26,7 @@
 <text x="440.0" y="280" font-size="11.5" fill="#6b6a66" text-anchor="middle">静态文件 :8080</text>
 <rect x="552" y="168" width="168" height="128" rx="8" fill="#e3ecfa" stroke="#2f6fd6" stroke-width="2"/>
 <text x="636.0" y="192" font-size="13" font-weight="600" fill="#1f1e1d" text-anchor="middle">APP 接口节点</text>
-<text x="636.0" y="208" font-size="11.5" fill="#6b6a66" text-anchor="middle">服务端新增</text>
+<text x="636.0" y="208" font-size="11.5" fill="#6b6a66" text-anchor="middle">APP 团队开发</text>
 <text x="636" y="236" font-size="11.5" fill="#1f1e1d" text-anchor="middle">汇总系统状态</text>
 <text x="636" y="254" font-size="11.5" fill="#1f1e1d" text-anchor="middle">校验并转发指令</text>
 <text x="636" y="272" font-size="11.5" fill="#1f1e1d" text-anchor="middle">导出模型和规划文件</text>
