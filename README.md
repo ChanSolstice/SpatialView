@@ -42,10 +42,12 @@ npm run dev         # 开发服务器
 npm test            # 单元测试
 npm run build       # 类型检查并构建
 
-# Python 工具（在仓库根目录）
+# Python 工具（在仓库根目录），用法见 tools/README.md
 uv sync             # 按 uv.lock 安装依赖
 uv run pytest       # 测试
 uv run ruff check . # 代码检查
+uv run python -m tools.sample_data --size large   # 生成样例到 samples/large
+uv run python -m tools.validate --model 模型.glb --plan 规划.json
 
 # 与 CI 相同的全部检查
 ./scripts/check.sh
