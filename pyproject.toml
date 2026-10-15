@@ -21,8 +21,9 @@ dev = [
 package = false
 
 [tool.pytest.ini_options]
-testpaths = ["tools"]
-pythonpath = ["."]
+testpaths = ["tools", "ros2_ws/src/spatialview_mock/test"]
+# mock 服务端的 core、export 不依赖 ROS，可以在 uv 环境中直接测试
+pythonpath = [".", "ros2_ws/src/spatialview_mock"]
 addopts = "-q"
 
 [tool.ruff]
@@ -32,6 +33,9 @@ extend-exclude = ["app", "docs", "ros2_ws/build", "ros2_ws/install", "ros2_ws/lo
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["tools", "spatialview_mock", "conftest"]
 
 [tool.ruff.lint.pycodestyle]
 # 中文按双宽度计算，提示文字容易超过 100 列；格式化仍按 100 列
