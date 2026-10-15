@@ -6,7 +6,7 @@ readme = "README.md"
 # 与 ROS 2 Humble（Ubuntu 22.04）的 Python 3.10 一致
 requires-python = ">=3.10,<3.11"
 dependencies = [
-    "numpy>=1.26",
+    "numpy>=1.21",  # Ubuntu 22.04 自带的 python3-numpy 为 1.21
     "websocket-client>=1.8",
 ]
 
