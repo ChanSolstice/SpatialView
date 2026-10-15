@@ -32,3 +32,7 @@ extend-exclude = ["app", "docs", "ros2_ws/build", "ros2_ws/install", "ros2_ws/lo
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.ruff.lint.pycodestyle]
+# 中文按双宽度计算，提示文字容易超过 100 列；格式化仍按 100 列
+max-line-length = 120
