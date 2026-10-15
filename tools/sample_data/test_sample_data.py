@@ -51,3 +51,14 @@ def test_large_spec_respects_interface_limits():
     assert any(not s.selectable for s in surfaces)
     path = build_path(LARGE, LARGE_PATH)
     assert 95_000 <= len(path.t) <= 100_000
+
+
+def test_process_intervals(small_sample):
+    out, manifest = small_sample
+    plan = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
+    points = plan["tcp_path"]["points"]
+    intervals = manifest["process_intervals"]
+    assert intervals[0][0] == 0.0 and intervals[-1][1] == plan["duration"]
+    for point in points:
+        inside = any(start <= point["t"] <= end for start, end in intervals)
+        assert inside == point["process_on"]
