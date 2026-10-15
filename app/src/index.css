@@ -1,0 +1,15 @@
+:root {
+  font-family:
+    'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui,
+    sans-serif;
+  color: #1b1f24;
+  background: #e9edf1;
+}
+
+body {
+  margin: 0;
+}
+
+.placeholder {
+  padding: 32px;
+}
