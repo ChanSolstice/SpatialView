@@ -1,0 +1,7 @@
+# 开始规划（接口文档 6.4）。
+string model_id                 # APP 当前加载的模型
+string[] surface_ids            # 要规划的表面；为空表示该模型全部可清洗表面
+---
+string code                     # 状态码："OK" 表示受理，其他值为拒绝原因（接口文档 7.1）
+string detail                   # 补充说明，可为空（7.4）
+SystemState state               # 处理该指令后的完整状态

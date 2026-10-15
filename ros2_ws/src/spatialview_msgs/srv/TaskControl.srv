@@ -1,0 +1,13 @@
+# 清洗任务控制（接口文档 6.5）。只有 START 校验 plan_id。
+
+string COMMAND_START="START"
+string COMMAND_PAUSE="PAUSE"
+string COMMAND_RESUME="RESUME"
+string COMMAND_STOP="STOP"
+
+string command                  # START PAUSE RESUME STOP
+string plan_id                  # START 时为 APP 当前加载的规划；其他命令不校验，可为空
+---
+string code                     # 状态码："OK" 表示受理，其他值为拒绝原因（接口文档 7.1）
+string detail                   # 补充说明，可为空（7.4）
+SystemState state               # 处理该指令后的完整状态
