@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>spatialview_mock_msgs</name>
+  <version>1.0.0</version>
+  <description>mock 服务端内部使用的消息：模拟驱动的状态、故障注入。只用于开发和测试，不属于 APP 与服务端的接口约定。</description>
+  <maintainer email="channing53533@gmail.com">SpatialView APP 团队</maintainer>
+  <license>Proprietary</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <buildtool_depend>rosidl_default_generators</buildtool_depend>
+
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

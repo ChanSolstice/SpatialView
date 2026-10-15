@@ -131,6 +131,15 @@ def build_plan(
     }
 
 
+def process_intervals(t: np.ndarray, process: np.ndarray) -> list[list[float]]:
+    """连续的工艺段点合并为时间区间 [开始, 结束]，mock 服务端据此在执行中开关激光。"""
+    flags = np.concatenate([[False], np.asarray(process, bool), [False]])
+    edges = np.diff(flags.astype(np.int8))
+    starts = np.nonzero(edges == 1)[0]
+    ends = np.nonzero(edges == -1)[0] - 1
+    return [[float(t[a]), float(t[b])] for a, b in zip(starts, ends, strict=True)]
+
+
 def generate(
     size_name: str,
     out: Path,
@@ -182,6 +191,7 @@ def generate(
         "duration": plan["duration"],
         "max_joint_step": float(np.abs(np.diff(q, axis=0)).max()),
         "max_fk_deviation": fk_deviation,
+        "process_intervals": process_intervals(np.round(tcp.t, 4), tcp.process),
     }
     (out / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

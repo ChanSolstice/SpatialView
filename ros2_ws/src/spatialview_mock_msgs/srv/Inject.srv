@@ -1,0 +1,6 @@
+# 故障注入（架构设计 6.3）。可用的 action 和 args 见 spatialview_mock 的 README。
+string action                   # 注入动作
+string args                     # JSON 参数，可为空
+---
+bool ok
+string message                  # 结果说明；失败时为原因

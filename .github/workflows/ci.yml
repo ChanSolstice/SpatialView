@@ -43,16 +43,18 @@ jobs:
       - run: uv run pytest
 
   ros:
-    name: ROS 2 包（colcon 构建）
+    name: ROS 2 包（构建、mock 自测）
     runs-on: ubuntu-24.04
     container: ros:humble
     defaults:
       run:
         shell: bash
-        working-directory: ros2_ws
     steps:
       - uses: actions/checkout@v7
-      - run: source /opt/ros/humble/setup.bash && colcon build
+      - run: apt-get update && apt-get install -y --no-install-recommends python3-numpy
+      - run: cd ros2_ws && source /opt/ros/humble/setup.bash && colcon build
       - run: |
-          source install/setup.bash
+          source ros2_ws/install/setup.bash
           python3 -c "from spatialview_msgs.msg import SystemState; assert SystemState.INTERFACE_VERSION == '1.0'"
+      - run: python3 -m tools.sample_data --size small
+      - run: scripts/mock-selftest.sh --inside
