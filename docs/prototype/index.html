@@ -1,0 +1,846 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpatialView 界面原型</title>
+<!--
+  静态原型：只展示视觉效果，按钮没有功能。
+  画面按 1280 × 800（横屏平板）设计，依据需求文档第 6 版与 docs/前端UI设计.md。
+  三维区域使用 three.js（需联网从 cdn.jsdelivr.net 加载）。
+  截图模式：index.html?capture=1&screen=<画面 id>，只输出 1280 × 800 的 APP 画面。
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<style>
+/* ===================== APP 设计令牌（与前端UI设计.md 第 3 节一致） ===================== */
+:root {
+  --app-bg: #E9EDF1;
+  --surface: #FFFFFF;
+  --surface-2: #F5F7F9;
+  --border: #CDD4DC;
+  --divider: #E1E6EB;
+  --text: #1B1F24;
+  --text-2: #4D5662;
+  --text-3: #6B7480;
+  --dis-bg: #EEF1F4;
+  --dis-fg: #A4ACB6;
+  --dis-bd: #E1E5EA;
+  --primary: #1F6FEB;
+  --primary-press: #1959C4;
+  --primary-tint: #E6EFFE;
+  --danger: #D93025;
+  --danger-dark: #A8231B;
+  --ok-bg: #E2F3E7;    --ok-fg: #16653A;    --ok-dot: #1E9E50;
+  --run-bg: #E4EDFD;   --run-fg: #1A56B8;   --run-dot: #2F6FED;
+  --pause-bg: #FCF0CF; --pause-fg: #7F5100; --pause-dot: #DE9B00;
+  --fault-bg: #FBE4E2; --fault-fg: #A8231B; --fault-dot: #D93025;
+  --laser-bg: #FFE6CF; --laser-fg: #983C00; --laser-dot: #EF6C00;
+  --off-bg: #EDF0F3;   --off-fg: #4D5662;   --off-dot: #9AA3AD;
+  --gray-bg: #EDF0F3;  --gray-fg: #5F6873;  --gray-dot: #A9B1BA;
+  --warn-bg: #FFF2D9;  --warn-fg: #7A4B00;  --warn-bd: #F0C46A;
+  --select: #F28C28;
+  --font: "PingFang SC", "Noto Sans CJK SC", "Source Han Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: #1D2127; color: #E6E9ED; font-family: var(--font); overflow: hidden; }
+button { font: inherit; cursor: default; }
+
+/* ===================== 原型外壳（不属于 APP） ===================== */
+.proto { display: flex; height: 100vh; }
+.proto-side { width: 288px; flex: none; background: #16191E; border-right: 1px solid #2A2F37; padding: 24px 14px; overflow-y: auto; }
+.proto-title { font-size: 18px; font-weight: 700; color: #F2F4F7; margin: 0 10px 6px; }
+.proto-sub { font-size: 13px; line-height: 1.65; color: #9AA3AE; margin: 0 10px 18px; }
+.proto-list { list-style: none; margin: 0; padding: 0; }
+.proto-item { display: block; width: 100%; text-align: left; background: none; border: 0; color: #C9CFD6; padding: 9px 12px; border-radius: 8px; cursor: pointer; }
+.proto-item:hover { background: #20252C; }
+.proto-item.is-current { background: #24385A; color: #FFFFFF; }
+.proto-item .n { display: block; font-size: 14px; font-weight: 600; }
+.proto-item .d { display: block; font-size: 12px; color: #8E97A2; margin-top: 2px; }
+.proto-item.is-current .d { color: #B9C7DD; }
+.proto-foot { font-size: 12px; line-height: 1.7; color: #7D8692; margin: 18px 10px 0; }
+.proto-stage { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; }
+.device-box { position: relative; }
+.device { position: absolute; left: 0; top: 0; padding: 22px; background: #0D0F12; border-radius: 40px; box-shadow: 0 30px 80px rgba(0, 0, 0, .5), inset 0 0 0 2px #2B2F36; transform-origin: 0 0; }
+.screen { position: relative; width: 1280px; height: 800px; border-radius: 12px; overflow: hidden; }
+.caption { max-width: 1100px; margin-top: 18px; font-size: 14px; line-height: 1.7; color: #B4BCC6; text-align: center; }
+.caption b { color: #F2F4F7; }
+@media (max-width: 900px) {
+  .proto { flex-direction: column; }
+  .proto-side { width: auto; height: auto; max-height: 40vh; border-right: 0; border-bottom: 1px solid #2A2F37; }
+}
+body.capture { background: #FFFFFF; }
+body.capture .proto-side, body.capture .caption { display: none; }
+body.capture .proto-stage { padding: 0; display: block; }
+body.capture .device { position: static; padding: 0; border-radius: 0; background: none; box-shadow: none; transform: none !important; }
+body.capture .screen { border-radius: 0; }
+
+/* ===================== APP ===================== */
+.app { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--app-bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased; user-select: none; }
+.ic { width: 24px; height: 24px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Status Bar */
+.sb { height: 64px; flex: none; display: flex; align-items: center; padding: 0 12px 0 16px; background: var(--surface); border-bottom: 1px solid var(--divider); }
+.sb-brand { display: flex; align-items: center; gap: 10px; padding-right: 12px; font-size: 19px; font-weight: 700; letter-spacing: .2px; }
+.sb-mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #2F7BF6, #1A56B8); display: flex; align-items: center; justify-content: center; }
+.sb-mark svg { width: 18px; height: 18px; stroke: #FFFFFF; stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.sb-item { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border-left: 1px solid var(--divider); }
+.sb-lbl { font-size: 16px; color: var(--text-2); white-space: nowrap; }
+.sb-phase { min-width: 64px; font-size: 16px; font-weight: 600; white-space: nowrap; }
+.sb-phase.is-unknown { color: var(--gray-fg); }
+.sb-spacer { flex: 1; }
+.pill { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 12px; border-radius: 17px; font-size: 16px; font-weight: 600; white-space: nowrap; }
+.pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--dot); }
+.pill.ok    { background: var(--ok-bg);    color: var(--ok-fg);    --dot: var(--ok-dot); }
+.pill.run   { background: var(--run-bg);   color: var(--run-fg);   --dot: var(--run-dot); }
+.pill.pause { background: var(--pause-bg); color: var(--pause-fg); --dot: var(--pause-dot); }
+.pill.fault { background: var(--fault-bg); color: var(--fault-fg); --dot: var(--fault-dot); }
+.pill.laser { background: var(--laser-bg); color: var(--laser-fg); --dot: var(--laser-dot); }
+.pill.off   { background: var(--off-bg);   color: var(--off-fg);   --dot: var(--off-dot); }
+.pill.gray  { background: var(--gray-bg);  color: var(--gray-fg);  --dot: var(--gray-dot); }
+.pill.crit  { background: var(--danger);   color: #FFFFFF;         --dot: #FFFFFF; }
+.btn-sm { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px; margin-left: 4px; border: 1.5px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 15px; font-weight: 600; white-space: nowrap; }
+.btn-sm .ic { width: 18px; height: 18px; }
+.sb-alarm { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 10px 0 12px; border: 1.5px solid var(--divider); border-radius: 20px; background: var(--surface); color: var(--text-3); font-size: 16px; font-weight: 600; white-space: nowrap; }
+.sb-alarm .ic { width: 20px; height: 20px; }
+#st-robot { min-width: 88px; justify-content: center; }
+.sb-alarm.is-error { background: var(--fault-bg); border-color: #F2C3BF; color: var(--fault-fg); }
+.sb-alarm.is-warning { background: var(--pause-bg); border-color: #EFD48C; color: var(--pause-fg); }
+.sb-alarm.is-open { box-shadow: 0 0 0 3px rgba(217, 48, 37, .18); }
+
+/* 主体 */
+.main { flex: 1; min-height: 0; display: flex; }
+.vp { position: relative; flex: 1; overflow: hidden; background: linear-gradient(180deg, #F4F6F9 0%, #DFE5EB 100%); }
+.vp canvas { position: absolute; inset: 0; display: block; }
+.vp-labels { position: absolute; inset: 0; pointer-events: none; }
+.vp-fallback { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; font-size: 16px; color: var(--text-3); }
+.vp-reset { position: absolute; top: 16px; right: 16px; z-index: 3; display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px; border: 1.5px solid var(--border); border-radius: 10px; background: rgba(255, 255, 255, .94); color: var(--text); font-size: 16px; font-weight: 600; }
+.vp-reset .ic { width: 20px; height: 20px; }
+.vp-top { position: absolute; top: 16px; left: 50%; z-index: 3; transform: translateX(-50%); }
+.seltool { display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 18px; border: 1px solid var(--divider); border-radius: 14px; background: #FFFFFF; box-shadow: 0 6px 18px rgba(20, 30, 45, .14); }
+.seltool .cnt { display: flex; align-items: center; gap: 8px; margin-right: 8px; font-size: 18px; font-weight: 700; white-space: nowrap; }
+.seltool .cnt::before { content: ""; width: 12px; height: 12px; border-radius: 3px; background: var(--select); }
+.tbtn { display: inline-flex; align-items: center; gap: 6px; height: 44px; padding: 0 16px; border: 1.5px solid var(--border); border-radius: 10px; background: #FFFFFF; color: var(--text); font-size: 17px; font-weight: 600; white-space: nowrap; }
+.tbtn .ic { width: 20px; height: 20px; }
+.anim-tag { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 18px; border: 1.5px solid var(--warn-bd); border-radius: 20px; background: var(--warn-bg); color: var(--warn-fg); font-size: 17px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 12px rgba(122, 75, 0, .12); }
+.anim-tag .ic { width: 20px; height: 20px; }
+.center { position: absolute; inset: 0; z-index: 2; display: flex; align-items: center; justify-content: center; pointer-events: none; }
+.empty { text-align: center; color: var(--text-2); }
+.empty .ic { width: 64px; height: 64px; stroke-width: 1.5; color: #9AA3AD; }
+.empty .t { margin-top: 14px; font-size: 22px; font-weight: 600; }
+.empty .h { margin-top: 6px; font-size: 16px; color: var(--text-3); }
+.pcard { width: 340px; padding: 22px 26px; border: 1px solid var(--divider); border-radius: 16px; background: rgba(255, 255, 255, .95); box-shadow: 0 10px 30px rgba(20, 30, 45, .14); }
+.pcard .row { display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 600; }
+.pcard .pct { margin-left: auto; color: var(--primary); font-variant-numeric: tabular-nums; }
+.bar { height: 8px; margin-top: 16px; overflow: hidden; border-radius: 4px; background: #E3E8EE; }
+.bar > i { display: block; height: 100%; border-radius: 4px; background: var(--primary); }
+.spinner { width: 26px; height: 26px; flex: none; border: 3px solid #D5DEE9; border-top-color: var(--primary); border-radius: 50%; animation: spin .9s linear infinite; }
+.btn .spinner { width: 24px; height: 24px; border-color: #D3D9E0; border-top-color: var(--text-2); }
+@keyframes spin { to { transform: rotate(360deg); } }
+body.capture .spinner { animation: none; }
+.animbar { position: absolute; left: 20px; right: 20px; bottom: 20px; z-index: 3; display: flex; align-items: center; gap: 14px; height: 76px; padding: 0 16px; border: 1px solid var(--divider); border-radius: 16px; background: #FFFFFF; box-shadow: 0 8px 24px rgba(20, 30, 45, .16); }
+.ab-btn { width: 52px; height: 52px; flex: none; display: flex; align-items: center; justify-content: center; border: 1.5px solid var(--border); border-radius: 50%; background: #FFFFFF; color: var(--text); }
+.ab-btn.play { border-color: var(--primary); background: var(--primary); color: #FFFFFF; }
+.ab-btn .ic { width: 22px; height: 22px; }
+.ab-track { position: relative; flex: 1; height: 8px; margin: 0 6px; border-radius: 4px; background: #E3E8EE; }
+.ab-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px; background: var(--ok-dot); }
+.ab-thumb { position: absolute; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px; border: 2.5px solid var(--ok-dot); border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 4px rgba(0, 0, 0, .2); }
+.ab-time { min-width: 140px; color: var(--text-2); font-size: 17px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
+.seg { display: flex; overflow: hidden; border: 1.5px solid var(--border); border-radius: 10px; }
+.seg span { display: flex; align-items: center; justify-content: center; height: 44px; min-width: 56px; background: #FFFFFF; color: var(--text-2); font-size: 17px; font-weight: 600; }
+.seg span + span { border-left: 1.5px solid var(--border); }
+.seg span.on { background: var(--primary-tint); color: var(--run-fg); }
+.mask { position: absolute; inset: 0; z-index: 4; display: flex; align-items: center; justify-content: center; background: rgba(224, 229, 235, .78); backdrop-filter: blur(2px) grayscale(.5); }
+.mask-card { padding: 26px 36px; border: 1px solid var(--divider); border-radius: 16px; background: #FFFFFF; text-align: center; box-shadow: 0 10px 30px rgba(20, 30, 45, .14); }
+.mask-card .ic { width: 44px; height: 44px; color: var(--fault-dot); }
+.mask-card .t { margin-top: 10px; font-size: 22px; font-weight: 600; }
+.mask-card .h { margin-top: 6px; font-size: 16px; color: var(--text-3); }
+.path-label { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border: 1.5px solid var(--border); border-radius: 12px; background: #FFFFFF; color: var(--text); font-size: 14px; font-weight: 700; white-space: nowrap; transform: translateY(-24px); box-shadow: 0 1px 4px rgba(0, 0, 0, .14); }
+.path-label::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
+.path-label.end::before { background: var(--text); }
+
+/* 按钮栏 */
+.panel { width: 300px; flex: none; display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; border-left: 1px solid var(--divider); background: var(--surface); }
+.btn { display: flex; align-items: center; gap: 12px; width: 100%; height: 64px; flex: none; padding: 0 18px; border: 1.5px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font-size: 20px; font-weight: 600; text-align: left; white-space: nowrap; }
+.btn .ic { width: 26px; height: 26px; }
+.btn.is-primary { border-color: var(--primary); background: var(--primary); color: #FFFFFF; box-shadow: 0 2px 0 var(--primary-press); }
+.btn.is-active { border-color: #9DBDF5; background: var(--primary-tint); color: var(--run-fg); }
+.btn.is-warn { border-color: #F2A766; background: #FFF6EE; color: var(--laser-fg); }
+.btn.is-disabled { border-color: var(--dis-bd); background: var(--dis-bg); color: var(--dis-fg); box-shadow: none; }
+.btn.is-busy { border-color: var(--dis-bd); background: var(--dis-bg); color: var(--text-2); }
+.panel-div { height: 1px; flex: none; background: var(--divider); }
+.estop-wrap { position: relative; z-index: 30; margin: auto -10px -6px; padding: 10px 10px 6px; border-radius: 20px; background: var(--surface); }
+.btn.is-above { position: relative; z-index: 30; }
+.estop { display: flex; align-items: center; justify-content: center; gap: 14px; width: 100%; height: 100px; border: 0; border-radius: 16px; background: var(--danger); color: #FFFFFF; font-size: 32px; font-weight: 700; letter-spacing: 8px; box-shadow: 0 4px 0 var(--danger-dark), 0 10px 20px rgba(217, 48, 37, .28); }
+.estop .ic { width: 40px; height: 40px; stroke-width: 2.2; }
+.estop-cap { margin-top: 10px; color: var(--text-3); font-size: 14px; text-align: center; }
+
+/* 短时提示（指令被拒绝等） */
+.toast { position: absolute; top: 16px; left: 50%; z-index: 6; display: flex; align-items: flex-start; gap: 14px; width: 560px; padding: 14px 14px 14px 18px; border: 1px solid #F2C3BF; border-left: 6px solid var(--danger); border-radius: 14px; background: #FFFFFF; box-shadow: 0 10px 30px rgba(20, 30, 45, .18); transform: translateX(-50%); }
+.toast > .ic { width: 26px; height: 26px; margin-top: 1px; color: var(--danger); }
+.toast .tt { font-size: 18px; font-weight: 600; }
+.toast .td { margin-top: 3px; color: var(--text-2); font-size: 15px; }
+.toast .tc { margin-top: 6px; color: var(--text-3); font-size: 12px; font-family: var(--mono); }
+.toast .tx { width: 44px; height: 44px; flex: none; margin-left: auto; display: flex; align-items: center; justify-content: center; border: 0; border-radius: 10px; background: none; color: var(--text-3); }
+
+/* 告警面板 */
+.alarms { position: absolute; top: 72px; right: 12px; z-index: 15; width: 480px; overflow: hidden; border: 1px solid var(--divider); border-radius: 16px; background: #FFFFFF; box-shadow: 0 18px 44px rgba(15, 25, 40, .24); }
+.al-head { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid var(--divider); font-size: 18px; font-weight: 700; }
+.al-head .ic { color: var(--text-3); }
+.al-note { padding: 10px 20px; border-bottom: 1px solid var(--divider); background: var(--surface-2); color: var(--text-2); font-size: 14px; }
+.al-item { display: flex; gap: 14px; padding: 14px 20px; border-bottom: 1px solid var(--divider); }
+.al-item:last-child { border-bottom: 0; }
+.al-bar { width: 6px; flex: none; border-radius: 3px; }
+.al-bar.error { background: var(--fault-dot); }
+.al-bar.warning { background: var(--pause-dot); }
+.al-main { flex: 1; min-width: 0; }
+.al-title { display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; }
+.al-level { padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+.al-level.error { background: var(--fault-bg); color: var(--fault-fg); }
+.al-level.warning { background: var(--pause-bg); color: var(--pause-fg); }
+.al-detail { margin-top: 3px; color: var(--text-2); font-size: 15px; }
+.al-meta { display: flex; justify-content: space-between; margin-top: 6px; color: var(--text-3); font-size: 13px; }
+.al-meta code { font-family: var(--mono); }
+
+/* 对话框 */
+.scrim { position: absolute; inset: 0; z-index: 20; display: flex; align-items: center; justify-content: center; background: rgba(16, 22, 30, .46); }
+.dlg { width: 560px; overflow: hidden; border-radius: 18px; background: #FFFFFF; box-shadow: 0 24px 60px rgba(10, 20, 30, .35); }
+.dlg-body { display: flex; gap: 18px; padding: 28px 30px 6px; }
+.dlg-ic { width: 52px; height: 52px; flex: none; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+.dlg-ic .ic { width: 28px; height: 28px; }
+.dlg-ic.warn { background: var(--pause-bg); color: var(--pause-fg); }
+.dlg-ic.error { background: var(--fault-bg); color: var(--fault-fg); }
+.dlg-title { margin: 8px 0 10px; font-size: 24px; font-weight: 700; }
+.dlg-text { color: var(--text); font-size: 19px; line-height: 1.6; }
+.dlg-detail { margin-top: 4px; color: var(--text-2); font-size: 16px; }
+.dlg-code { margin-top: 10px; color: var(--text-3); font-size: 13px; font-family: var(--mono); }
+.dlg-foot { display: flex; justify-content: flex-end; gap: 12px; padding: 22px 30px 26px; }
+.dbtn { height: 56px; min-width: 136px; padding: 0 22px; border: 1.5px solid var(--border); border-radius: 12px; background: #FFFFFF; color: var(--text); font-size: 19px; font-weight: 600; }
+.dbtn.primary { border-color: var(--primary); background: var(--primary); color: #FFFFFF; }
+.dbtn.danger { border-color: var(--danger); background: var(--danger); color: #FFFFFF; }
+.dlg.alert .band { display: flex; align-items: center; gap: 14px; padding: 22px 30px; background: var(--danger); color: #FFFFFF; font-size: 26px; font-weight: 700; }
+.dlg.alert .band .ic { width: 34px; height: 34px; }
+.dlg.alert .big { padding: 24px 30px 0; color: var(--danger-dark); font-size: 26px; font-weight: 700; }
+.dlg.alert .sub { padding: 8px 30px 0; color: var(--text-2); font-size: 17px; line-height: 1.6; }
+
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-scan" viewBox="0 0 24 24"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3M4 12h16"/></symbol>
+  <symbol id="i-select" viewBox="0 0 24 24"><path d="M6 3.5l13 7.2-5.6 1.6-2.2 5.6z"/><path d="M13.5 12.5l4.5 4.5"/></symbol>
+  <symbol id="i-plan" viewBox="0 0 24 24"><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="5.5" r="2"/><path d="M8 18.5h7.5a3.25 3.25 0 0 0 0-6.5h-7a3.25 3.25 0 0 1 0-6.5H16"/></symbol>
+  <symbol id="i-anim" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M10 8.5l5.5 3.5-5.5 3.5z"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M7.5 4.8l11.5 7.2-11.5 7.2z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8.5 5v14M15.5 5v14"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="1.5"/></symbol>
+  <symbol id="i-laser" viewBox="0 0 24 24"><circle cx="12" cy="12" r="2.6"/><path d="M12 3v3.2M12 17.8V21M3 12h3.2M17.8 12H21M5.6 5.6l2.3 2.3M16.1 16.1l2.3 2.3M18.4 5.6l-2.3 2.3M7.9 16.1l-2.3 2.3"/></symbol>
+  <symbol id="i-estop" viewBox="0 0 24 24"><path d="M8.4 2.5h7.2l5.9 5.9v7.2l-5.9 5.9H8.4l-5.9-5.9V8.4z"/><path d="M12 7.5v6M12 16.6v.1"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 11.5a8 8 0 1 0-2.3 6"/><path d="M20 4.5v7h-7"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5v-5.5a6 6 0 1 1 12 0v5.5l1.8 1.8H4.2z"/><path d="M10 21a2 2 0 0 0 4 0"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M6 15l6-6 6 6"/></symbol>
+  <symbol id="i-view" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6.5"/><circle cx="12" cy="12" r="1.6"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3"/></symbol>
+  <symbol id="i-cube" viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z"/><path d="M12 21.5V12M20.5 7.3L12 12 3.5 7.3"/></symbol>
+  <symbol id="i-wifi-off" viewBox="0 0 24 24"><path d="M2.5 8.8a14 14 0 0 1 4.6-2.7M10.5 5.1A14 14 0 0 1 21.5 8.8M5.8 12.2a9 9 0 0 1 3.4-1.9M14.2 10.4a9 9 0 0 1 4 1.8M9 15.6a4.5 4.5 0 0 1 6 0M12 19h.01M3 3l18 18"/></symbol>
+  <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3.5l9.5 16.5h-19z"/><path d="M12 10v4.5M12 17.2v.1"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24"><path d="M4 12.5a8 8 0 1 0 2.3-6"/><path d="M4 4.5v6h6"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-clear" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13"/></symbol>
+</svg>
+
+<div class="proto">
+  <aside class="proto-side">
+    <p class="proto-title">SpatialView 界面原型</p>
+    <p class="proto-sub">静态页面，只展示视觉效果，按钮没有功能。三维区域可以拖动旋转、双指或滚轮缩放。键盘 ↑ ↓ 切换画面。</p>
+    <ul class="proto-list" id="screen-list"></ul>
+    <p class="proto-foot">画面尺寸 1280 × 800（横屏平板）<br>依据：需求文档第 6 版、前端UI设计<br>工件、路径、机械臂均为示意数据</p>
+  </aside>
+  <main class="proto-stage">
+    <div class="device-box" id="device-box">
+      <div class="device" id="device">
+        <div class="screen">
+          <div class="app" id="app">
+            <header class="sb">
+              <div class="sb-brand"><span class="sb-mark"><svg viewBox="0 0 24 24"><path d="M4 17l5-6 4 3 7-8"/></svg></span>SpatialView</div>
+              <div class="sb-item"><span class="sb-lbl">机械臂</span><span class="pill" id="st-robot"></span></div>
+              <div class="sb-item"><span class="sb-lbl">作业</span><span class="sb-phase" id="st-phase"></span></div>
+              <div class="sb-item"><span class="sb-lbl">激光</span><span class="pill" id="st-laser"></span></div>
+              <div class="sb-item"><span class="sb-lbl">相机</span><span class="pill" id="st-camera"></span></div>
+              <div class="sb-item"><span class="sb-lbl">服务</span><span class="pill" id="st-service"></span><button class="btn-sm"><svg class="ic"><use href="#i-refresh"/></svg>刷新连接</button></div>
+              <div class="sb-spacer"></div>
+              <button class="sb-alarm" id="st-alarm"><svg class="ic"><use href="#i-bell"/></svg><span id="st-alarm-text"></span><svg class="ic" id="st-alarm-chev"><use href="#i-down"/></svg></button>
+            </header>
+
+            <div class="main">
+              <section class="vp" id="vp">
+                <div class="vp-fallback" id="vp-fallback">三维画面需要联网加载 three.js（cdn.jsdelivr.net）</div>
+                <div class="vp-labels" id="vp-labels"></div>
+                <button class="vp-reset" id="vp-reset"><svg class="ic"><use href="#i-view"/></svg>恢复默认视角</button>
+
+                <div class="vp-top" id="ov-select" hidden>
+                  <div class="seltool">
+                    <span class="cnt">已选 4 个表面</span>
+                    <button class="tbtn"><svg class="ic"><use href="#i-clear"/></svg>清空选择</button>
+                    <button class="tbtn"><svg class="ic"><use href="#i-close"/></svg>退出选面</button>
+                  </div>
+                </div>
+                <div class="vp-top" id="ov-animtag" hidden>
+                  <span class="anim-tag"><svg class="ic"><use href="#i-anim"/></svg>轨迹动画 · 非实际位置</span>
+                </div>
+
+                <div class="center" id="ov-empty" hidden>
+                  <div class="empty">
+                    <svg class="ic"><use href="#i-cube"/></svg>
+                    <div class="t">暂无模型，请开始扫描</div>
+                    <div class="h">点击右侧"开始扫描"，完成后在这里显示工件模型</div>
+                  </div>
+                </div>
+                <div class="center" id="ov-progress" hidden>
+                  <div class="pcard">
+                    <div class="row"><span class="spinner"></span><span>正在扫描…</span><span class="pct">42%</span></div>
+                    <div class="bar"><i style="width:42%"></i></div>
+                  </div>
+                </div>
+
+                <div class="animbar" id="ov-animbar" hidden>
+                  <button class="ab-btn play"><svg class="ic"><use href="#i-pause"/></svg></button>
+                  <button class="ab-btn"><svg class="ic"><use href="#i-replay"/></svg></button>
+                  <div class="ab-track"><div class="ab-fill" id="ab-fill"></div><div class="ab-thumb" id="ab-thumb"></div></div>
+                  <span class="ab-time" id="ab-time">00:00 / 00:00</span>
+                  <div class="seg"><span>1×</span><span class="on">5×</span><span>20×</span></div>
+                  <button class="tbtn"><svg class="ic"><use href="#i-close"/></svg>退出</button>
+                </div>
+
+                <div class="toast" id="ov-toast" hidden>
+                  <svg class="ic"><use href="#i-warn"/></svg>
+                  <div><div class="tt">安全联锁条件不满足，无法开启激光</div><div class="td">安全门未关闭</div><div class="tc">INTERLOCK</div></div>
+                  <button class="tx"><svg class="ic"><use href="#i-close"/></svg></button>
+                </div>
+                <div class="mask" id="ov-mask" hidden>
+                  <div class="mask-card">
+                    <svg class="ic"><use href="#i-wifi-off"/></svg>
+                    <div class="t">连接断开，画面内容可能已过期</div>
+                    <div class="h">正在重连…</div>
+                  </div>
+                </div>
+              </section>
+
+              <aside class="panel">
+                <button class="btn" data-btn="scan"></button>
+                <button class="btn" data-btn="select"></button>
+                <button class="btn" data-btn="plan"></button>
+                <button class="btn" data-btn="anim"></button>
+                <div class="panel-div"></div>
+                <button class="btn" data-btn="main"></button>
+                <button class="btn" data-btn="stop"></button>
+                <button class="btn" data-btn="laser"></button>
+                <div class="panel-div"></div>
+                <div class="estop-wrap">
+                  <button class="estop"><svg class="ic"><use href="#i-estop"/></svg>急停</button>
+                  <div class="estop-cap">软件急停不能替代设备急停</div>
+                </div>
+              </aside>
+            </div>
+
+            <div class="alarms" id="ov-alarms" hidden></div>
+            <div class="scrim" id="ov-dialog" hidden></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="caption" id="caption"></p>
+  </main>
+</div>
+
+<script>
+/* ===================== 画面定义（只用于展示） ===================== */
+const ST = {
+  robot:   { ready: ['ok', '就绪'], running: ['run', '运行中'], paused: ['pause', '暂停'], fault: ['fault', '故障'], estop: ['crit', '急停'], offline: ['gray', '离线'], unknown: ['gray', '未知'] },
+  laser:   { off: ['off', '关闭'], on: ['laser', '开启'], error: ['fault', '异常'], offline: ['gray', '离线'], unknown: ['gray', '未知'] },
+  camera:  { ok: ['ok', '正常'], error: ['fault', '异常'], offline: ['gray', '离线'], unknown: ['gray', '未知'] },
+  service: { ok: ['ok', '已连接'], connecting: ['pause', '正在连接…'], lost: ['fault', '连接断开，正在重连…'] },
+};
+const BTN = {
+  scan:   { icon: 'i-scan',   label: '开始扫描', busy: '正在扫描…' },
+  select: { icon: 'i-select', label: '选面' },
+  plan:   { icon: 'i-plan',   label: '开始规划', busy: '正在规划…' },
+  anim:   { icon: 'i-anim',   label: '轨迹动画' },
+  stop:   { icon: 'i-stop',   label: '停止' },
+};
+const MAIN = { start: ['i-play', '开始清洗'], pause: ['i-pause', '暂停'], resume: ['i-play', '继续'] };
+
+const READY = { robot: 'ready', laser: 'off', camera: 'ok', service: 'ok', alarms: null };
+const PLAN_READY_BUTTONS = { scan: 'on', select: 'on', plan: 'on', anim: 'on', main: ['start', 'on'], stop: 'off', laser: ['开启激光', 'on'] };
+const ALL_OFF = { scan: 'off', select: 'off', plan: 'off', anim: 'off', main: ['start', 'off'], stop: 'off', laser: ['开启激光', 'off'] };
+const ALARMS = [
+  { level: 'error', title: '机械臂故障', detail: '第 3 轴驱动器过温', time: '14:32:05', code: 'ROBOT_FAULT' },
+  { level: 'error', title: '相机离线', detail: '', time: '14:31:40', code: 'CAMERA_OFFLINE' },
+  { level: 'warning', title: '规划失败', detail: '', time: '14:20:12', code: 'PLAN_FAILED' },
+];
+
+const SCREENS = [
+  { id: 'plan-ready', name: '规划就绪', d: '主界面：工件与 TCP 路径',
+    status: { ...READY, phase: '规划就绪' }, buttons: PLAN_READY_BUTTONS,
+    scene: { model: 'normal', path: true },
+    caption: '<b>规划就绪</b>：工件居中显示；蓝色粗实线为工艺段（激光开启），灰色细虚线为空行程，小箭头表示走向，起点、终点有标签。地面网格位于 base_link 的 XY 平面。' },
+  { id: 'no-model', name: '无模型', d: '首次启动或服务端重启后',
+    status: { ...READY, phase: '无模型' }, buttons: { ...ALL_OFF, scan: 'on', laser: ['开启激光', 'on'] },
+    scene: { model: 'none' }, overlay: { empty: true },
+    caption: '<b>无模型</b>：只有"开始扫描"和"开启激光"可用；三维区中央给出下一步提示。' },
+  { id: 'scanning', name: '扫描中', d: '重新扫描，旧模型淡化',
+    status: { ...READY, robot: 'running', phase: '扫描中' }, buttons: { ...ALL_OFF, scan: 'busy' },
+    scene: { model: 'faded' }, overlay: { progress: true },
+    caption: '<b>扫描中</b>：被按下的按钮变为"正在扫描…"；旧模型淡化显示，新模型生成成功后才替换。服务端提供进度时显示百分比，否则只显示"正在扫描…"。' },
+  { id: 'select', name: '选面', d: '选面模式独占',
+    status: { ...READY, phase: '规划就绪' }, buttons: { ...ALL_OFF, select: 'active', plan: 'on' },
+    scene: { model: 'select' }, overlay: { select: true },
+    caption: '<b>选面</b>：模式独占，按钮栏只有"开始规划"可用（急停除外）。细线勾出各表面的分界；选中的表面为橙色，不可处理的表面为深灰色，TCP 路径隐藏；顶部工具条显示已选数量。' },
+  { id: 'animation', name: '轨迹动画', d: '前端演示，不发指令',
+    status: { ...READY, phase: '规划就绪' }, buttons: { ...PLAN_READY_BUTTONS, anim: 'active' },
+    scene: { model: 'normal', path: true, robot: true, animate: true, camera: 'wide' }, overlay: { animtag: true, animbar: true },
+    caption: '<b>轨迹动画</b>：机械臂按关节轨迹运动，已走过的路径变为绿色；顶部常驻"轨迹动画 · 非实际位置"，底部为播放条（播放/暂停、重播、进度、倍速、退出）。' },
+  { id: 'executing', name: '执行中', d: '进度着色，激光由任务控制',
+    status: { ...READY, robot: 'running', laser: 'on', phase: '执行中' },
+    buttons: { ...ALL_OFF, main: ['pause', 'on'], stop: 'on', laser: ['关闭激光', 'warn'] },
+    scene: { model: 'normal', path: true, progress: 0.42 },
+    caption: '<b>执行中</b>：不显示机械臂；路径按服务端的实际已执行时间着色。主按钮变为"暂停"，激光开启时按钮变为橙色的"关闭激光"。' },
+  { id: 'confirm', name: '确认对话框', d: '开始清洗前确认',
+    status: { ...READY, phase: '规划就绪' }, buttons: PLAN_READY_BUTTONS,
+    scene: { model: 'normal', path: true }, dialog: 'confirm',
+    caption: '<b>确认对话框</b>：开始清洗每次都要确认；确认按钮使用与操作一致的文字。对话框打开期间该操作因状态变化不可用时，对话框自动关闭。' },
+  { id: 'result', name: '结果提示框', d: '清洗中急停',
+    status: { ...READY, robot: 'estop', phase: '规划就绪' }, buttons: { ...ALL_OFF, select: 'on', plan: 'on', anim: 'on' },
+    scene: { model: 'normal', path: true }, dialog: 'result',
+    caption: '<b>结果提示框</b>：标题由结果决定；原因由 APP 按原因码给出，服务端的补充说明以小字显示，末尾附原因码。机械臂急停时 Status Bar 显示红底白字，运动类按钮不可用。' },
+  { id: 'rejected', name: '指令被拒绝', d: '按状态码显示提示',
+    status: { ...READY, phase: '规划就绪' }, buttons: PLAN_READY_BUTTONS,
+    scene: { model: 'normal', path: true }, overlay: { toast: true },
+    caption: '<b>指令被拒绝</b>：三维区顶部弹出短时提示，5 秒后自动消失，也可以手动关闭。主要文字由 APP 按状态码给出，服务端的补充说明以小字显示，末尾附状态码。' },
+  { id: 'alarms', name: '告警面板', d: '机械臂故障、相机离线',
+    status: { ...READY, robot: 'fault', camera: 'offline', phase: '规划就绪', alarms: { n: 3, level: 'error', open: true } },
+    buttons: { ...ALL_OFF, select: 'on', plan: 'on', anim: 'on' },
+    scene: { model: 'normal', path: true }, alarms: { items: ALARMS },
+    caption: '<b>告警面板</b>：点击 Status Bar 右侧展开，按时间倒序；色块和"错误/警告"标签同时表达级别，名称由 APP 按告警码给出，告警码以小号灰字显示。' },
+  { id: 'disconnected', name: '连接断开', d: '遮罩，只能急停和刷新',
+    status: { robot: 'unknown', laser: 'unknown', camera: 'unknown', service: 'lost', phase: '未知', alarms: { n: 1, level: 'error' } },
+    buttons: ALL_OFF, scene: { model: 'normal', path: true }, overlay: { mask: true },
+    caption: '<b>连接断开</b>：保留最后的画面并加遮罩，设备和作业状态显示"未知"；除急停和"刷新连接"外全部不可用，另有本地告警"网络连接断开"。' },
+  { id: 'estop-failed', name: '急停发送失败', d: '醒目提示',
+    status: { robot: 'unknown', laser: 'unknown', camera: 'unknown', service: 'lost', phase: '未知', alarms: { n: 1, level: 'error' } },
+    buttons: ALL_OFF, scene: { model: 'normal', path: true }, overlay: { mask: true }, dialog: 'estop-failed',
+    caption: '<b>急停发送失败</b>：与 rosbridge 的连接已断开、超时或驱动返回失败时立即弹出，红色横幅加大号文字，提示改用设备急停按钮。' },
+];
+
+const DIALOGS = {
+  confirm: `<div class="dlg">
+      <div class="dlg-body"><div class="dlg-ic warn"><svg class="ic"><use href="#i-warn"/></svg></div>
+        <div><div class="dlg-title">开始清洗</div><div class="dlg-text">机械臂将开始运动，请确认作业区域内无人。是否开始清洗？</div></div></div>
+      <div class="dlg-foot"><button class="dbtn">取消</button><button class="dbtn primary">开始清洗</button></div></div>`,
+  result: `<div class="dlg">
+      <div class="dlg-body"><div class="dlg-ic error"><svg class="ic"><use href="#i-warn"/></svg></div>
+        <div><div class="dlg-title">清洗已中断</div><div class="dlg-text">机械臂急停</div>
+          <div class="dlg-detail">设备急停按钮被按下</div><div class="dlg-code">ROBOT_ESTOP</div></div></div>
+      <div class="dlg-foot"><button class="dbtn primary">确定</button></div></div>`,
+  'estop-failed': `<div class="dlg alert">
+      <div class="band"><svg class="ic"><use href="#i-estop"/></svg>急停发送失败</div>
+      <div class="big">请立即使用设备急停按钮</div>
+      <div class="sub">与服务端的连接已断开，软件急停无法送达机械臂。</div>
+      <div class="dlg-foot"><button class="dbtn danger">我知道了</button></div></div>`,
+};
+
+/* ===================== 渲染 APP 画面 ===================== */
+const $ = (s) => document.querySelector(s);
+const params = new URLSearchParams(location.search);
+const CAPTURE = params.get('capture') === '1';
+if (CAPTURE) document.body.classList.add('capture');
+
+function setPill(el, [cls, text]) { el.className = 'pill ' + cls; el.textContent = text; }
+function icon(id) { return `<svg class="ic"><use href="#${id}"/></svg>`; }
+
+function renderButtons(b) {
+  document.querySelectorAll('[data-btn]').forEach((el) => {
+    const key = el.dataset.btn;
+    let iconId, label, state;
+    if (key === 'main') { const [kind, s] = b.main; [iconId, label] = MAIN[kind]; state = s === 'on' ? 'primary' : s; }
+    else if (key === 'laser') { const [text, s] = b.laser; iconId = 'i-laser'; label = text; state = s; }
+    else { iconId = BTN[key].icon; label = BTN[key].label; state = b[key]; if (state === 'busy') label = BTN[key].busy; }
+    el.className = 'btn' + ({ off: ' is-disabled', busy: ' is-busy', active: ' is-active', primary: ' is-primary', warn: ' is-warn' }[state] || '')
+      + (key === 'laser' && label === '关闭激光' && state !== 'off' ? ' is-above' : '');
+    el.innerHTML = (state === 'busy' ? '<span class="spinner"></span>' : icon(iconId)) + `<span>${label}</span>`;
+  });
+}
+
+function renderAlarms(spec) {
+  const panel = $('#ov-alarms');
+  if (!spec) { panel.hidden = true; return; }
+  panel.hidden = false;
+  panel.innerHTML = `<div class="al-head">告警（${spec.items.length}）<svg class="ic"><use href="#i-close"/></svg></div>` +
+    spec.items.map((a) => `<div class="al-item"><div class="al-bar ${a.level}"></div><div class="al-main">
+      <div class="al-title">${a.title}<span class="al-level ${a.level}">${a.level === 'error' ? '错误' : '警告'}</span></div>
+      ${a.detail ? `<div class="al-detail">${a.detail}</div>` : ''}
+      <div class="al-meta"><span>${a.time}</span><code>${a.code}</code></div></div></div>`).join('');
+}
+
+function renderScreen(sc) {
+  const s = sc.status;
+  setPill($('#st-robot'), ST.robot[s.robot]);
+  setPill($('#st-laser'), ST.laser[s.laser]);
+  setPill($('#st-camera'), ST.camera[s.camera]);
+  setPill($('#st-service'), ST.service[s.service]);
+  const phase = $('#st-phase'); phase.textContent = s.phase; phase.classList.toggle('is-unknown', s.phase === '未知');
+  const al = $('#st-alarm');
+  al.className = 'sb-alarm' + (s.alarms ? ' is-' + s.alarms.level : '') + (s.alarms && s.alarms.open ? ' is-open' : '');
+  $('#st-alarm-text').textContent = s.alarms ? `${s.alarms.n} 个告警` : '无告警';
+  $('#st-alarm-chev').innerHTML = `<use href="#${s.alarms && s.alarms.open ? 'i-up' : 'i-down'}"/>`;
+  renderButtons(sc.buttons);
+  const o = sc.overlay || {};
+  $('#ov-empty').hidden = !o.empty;
+  $('#ov-progress').hidden = !o.progress;
+  $('#ov-select').hidden = !o.select;
+  $('#ov-animtag').hidden = !o.animtag;
+  $('#ov-animbar').hidden = !o.animbar;
+  $('#ov-mask').hidden = !o.mask;
+  $('#ov-toast').hidden = !o.toast;
+  renderAlarms(sc.alarms);
+  const dlg = $('#ov-dialog');
+  dlg.hidden = !sc.dialog;
+  dlg.innerHTML = sc.dialog ? DIALOGS[sc.dialog] : '';
+  $('#caption').innerHTML = sc.caption;
+  document.querySelectorAll('.proto-item').forEach((el) => el.classList.toggle('is-current', el.dataset.id === sc.id));
+  window.dispatchEvent(new CustomEvent('screen', { detail: sc }));
+}
+
+/* ===================== 原型外壳 ===================== */
+const list = $('#screen-list');
+list.innerHTML = SCREENS.map((sc) => `<li><button class="proto-item" data-id="${sc.id}"><span class="n">${sc.name}</span><span class="d">${sc.d}</span></button></li>`).join('');
+let current = SCREENS.find((sc) => sc.id === (params.get('screen') || location.hash.slice(1))) || SCREENS[0];
+function show(sc) { current = sc; if (!CAPTURE) history.replaceState(null, '', '#' + sc.id); renderScreen(sc); }
+list.addEventListener('click', (e) => { const b = e.target.closest('.proto-item'); if (b) show(SCREENS.find((sc) => sc.id === b.dataset.id)); });
+window.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  const i = SCREENS.indexOf(current) + (e.key === 'ArrowDown' ? 1 : -1);
+  if (i >= 0 && i < SCREENS.length) { e.preventDefault(); show(SCREENS[i]); }
+});
+function fit() {
+  if (CAPTURE) return;
+  const stage = $('.proto-stage');
+  const W = 1280 + 44, H = 800 + 44;
+  const s = Math.min((stage.clientWidth - 48) / W, (stage.clientHeight - 48 - 80) / H, 1);
+  $('#device').style.transform = `scale(${s})`;
+  const box = $('#device-box'); box.style.width = W * s + 'px'; box.style.height = H * s + 'px';
+}
+window.addEventListener('resize', fit);
+fit();
+window.SV = { get current() { return current; }, CAPTURE };
+show(current);
+</script>
+
+<script type="module">
+/* ===================== 三维场景（示意数据） ===================== */
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
+
+const vp = document.getElementById('vp');
+const W = vp.clientWidth, H = vp.clientHeight;
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.setSize(W, H);
+vp.prepend(renderer.domElement);
+const labelRenderer = new CSS2DRenderer({ element: document.getElementById('vp-labels') });
+labelRenderer.setSize(W, H);
+
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(38, W / H, 0.05, 50);
+camera.up.set(0, 0, 1);                                   // Z 轴向上，与 base_link 一致
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enablePan = false;
+controls.enableDamping = false;
+controls.minDistance = 0.6;
+controls.maxDistance = 6;
+
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8f9aa6, 1.5));
+const key = new THREE.DirectionalLight(0xffffff, 2.1); key.position.set(3.5, -1.2, 2.6); scene.add(key);
+const fill = new THREE.DirectionalLight(0xe8f0ff, 0.7); fill.position.set(-2, 2.5, 1.5); scene.add(fill);
+
+// 地面网格：base_link 的 XY 平面，4 m 见方、0.1 m 一格
+const grid = new THREE.GridHelper(4, 40, 0xaab4c0, 0xc9d1da);
+grid.rotation.x = Math.PI / 2;
+grid.material.transparent = true; grid.material.opacity = 0.85;
+scene.add(grid);
+
+/* ---------- 工件：顶部为曲面的块体，9 个顶面 + 4 个侧面 ---------- */
+const X = [0.55, 0.7833, 1.0167, 1.25], Y = [-0.45, -0.15, 0.15, 0.45];
+const CX = 0.90, LX = 0.70, LY = 0.90, AMP = 0.10, BASE_Z = 0.28;
+const h = (x, y) => BASE_Z + AMP * Math.cos(Math.PI * (x - CX) / LX) * Math.cos(Math.PI * y / LY);
+const hx = (x, y) => -AMP * Math.PI / LX * Math.sin(Math.PI * (x - CX) / LX) * Math.cos(Math.PI * y / LY);
+const hy = (x, y) => -AMP * Math.PI / LY * Math.cos(Math.PI * (x - CX) / LX) * Math.sin(Math.PI * y / LY);
+
+function topPatch(x0, x1, y0, y1, n = 20) {
+  const pos = [], nor = [], idx = [];
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+    const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * j / n;
+    pos.push(x, y, h(x, y));
+    const v = new THREE.Vector3(-hx(x, y), -hy(x, y), 1).normalize(); nor.push(v.x, v.y, v.z);
+  }
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const a = i * (n + 1) + j, b = a + n + 1;
+    idx.push(a, b, a + 1, b, b + 1, a + 1);
+  }
+  return geo(pos, nor, idx);
+}
+function wall(p0, p1, normal, n = 40) {      // 从 p0 到 p1 的竖直侧面，顶边沿曲面
+  const pos = [], nor = [], idx = [];
+  for (let k = 0; k <= n; k++) {
+    const x = p0[0] + (p1[0] - p0[0]) * k / n, y = p0[1] + (p1[1] - p0[1]) * k / n;
+    pos.push(x, y, 0, x, y, h(x, y)); nor.push(...normal, ...normal);
+  }
+  for (let k = 0; k < n; k++) { const a = 2 * k; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  return geo(pos, nor, idx);
+}
+function geo(pos, nor, idx) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  g.setIndex(idx);
+  return g;
+}
+const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.62, metalness: 0.12, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1, ...extra });
+const MAT = {
+  normal: mat(0xa9b4c0),
+  selected: mat(0xf28c28, { roughness: 0.5 }),
+  unselectable: mat(0x59616b),
+  faded: mat(0xa9b4c0, { transparent: true, opacity: 0.32, depthWrite: false }),
+};
+const workpiece = new THREE.Group(); scene.add(workpiece);
+const surfaces = [];                          // { id, mesh, selectable }
+let sid = 1;
+for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+  surfaces.push({ id: sid++, mesh: new THREE.Mesh(topPatch(X[i], X[i + 1], Y[j], Y[j + 1]), MAT.normal), selectable: true });
+}
+surfaces.push({ id: sid++, mesh: new THREE.Mesh(wall([X[0], Y[3]], [X[0], Y[0]], [-1, 0, 0]), MAT.normal), selectable: true });
+surfaces.push({ id: sid++, mesh: new THREE.Mesh(wall([X[3], Y[0]], [X[3], Y[3]], [1, 0, 0]), MAT.normal), selectable: false });
+surfaces.push({ id: sid++, mesh: new THREE.Mesh(wall([X[0], Y[0]], [X[3], Y[0]], [0, -1, 0]), MAT.normal), selectable: true });
+surfaces.push({ id: sid++, mesh: new THREE.Mesh(wall([X[3], Y[3]], [X[0], Y[3]], [0, 1, 0]), MAT.normal), selectable: true });
+surfaces.forEach((s) => workpiece.add(s.mesh));
+const PLAN_SURFACES = [4, 5, 7, 8];           // 规划使用的表面（也是选面画面中预先选中的表面）
+
+// 选面模式下的表面分界线：每个表面的边界，贴着表面略微抬高
+const outline = [];
+const edge = (f, n = 24) => { for (let k = 0; k < n; k++) outline.push(f(k / n), f((k + 1) / n)); };
+const top = (x, y) => new THREE.Vector3(x, y, h(x, y) + 0.002);
+for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) {
+  const [x0, x1, y0, y1] = [X[i], X[i + 1], Y[j], Y[j + 1]];
+  edge((t) => top(x0 + (x1 - x0) * t, y0)); edge((t) => top(x0 + (x1 - x0) * t, y1));
+  edge((t) => top(x0, y0 + (y1 - y0) * t)); edge((t) => top(x1, y0 + (y1 - y0) * t));
+}
+[[X[0], Y[0]], [X[3], Y[0]], [X[3], Y[3]], [X[0], Y[3]]].forEach(([x, y], k, a) => {
+  const [nx, ny] = a[(k + 1) % 4];
+  outline.push(new THREE.Vector3(x, y, 0.002), new THREE.Vector3(x, y, h(x, y)));
+  outline.push(new THREE.Vector3(x, y, 0.002), new THREE.Vector3(nx, ny, 0.002));
+});
+
+/* ---------- TCP 路径：在规划表面上往复扫描，表面之间抬起移动 ---------- */
+const pts = [];                                // { p: Vector3, on: bool }
+const lift = 0.07, step = 0.034, margin = 0.025, sample = 0.02;
+const above = (v, dz) => new THREE.Vector3(v.x, v.y, v.z + dz);
+const onSurf = (x, y) => new THREE.Vector3(x, y, h(x, y) + 0.012);
+[[2, 0], [2, 1], [1, 1], [1, 0]].forEach(([i, j], k) => {
+  const x0 = X[i] + margin, x1 = X[i + 1] - margin, y0 = Y[j] + margin, y1 = Y[j + 1] - margin;
+  const rows = []; for (let x = x1; x >= x0 - 1e-6; x -= step) rows.push(x);
+  const first = onSurf(rows[0], y0);
+  if (k === 0) pts.push({ p: above(first, lift + 0.05), on: false });
+  else { const last = pts[pts.length - 1].p; pts.push({ p: above(last, lift), on: false }); pts.push({ p: above(first, lift), on: false }); }
+  pts.push({ p: first, on: false });
+  rows.forEach((x, r) => {
+    const n = Math.round((y1 - y0) / sample);
+    for (let s = 0; s <= n; s++) { const t = r % 2 ? 1 - s / n : s / n; pts.push({ p: onSurf(x, y0 + (y1 - y0) * t), on: true }); }
+  });
+});
+pts.push({ p: above(pts[pts.length - 1].p, lift + 0.05), on: false });
+const segs = [];                               // { a, b, on, t0, t1 }
+let tAcc = 0;
+for (let k = 0; k < pts.length - 1; k++) {
+  const a = pts[k].p, b = pts[k + 1].p, on = pts[k].on && pts[k + 1].on;
+  const dt = a.distanceTo(b) / (on ? 0.006 : 0.08);
+  segs.push({ a, b, on, t0: tAcc, t1: tAcc + dt }); tAcc += dt;
+}
+const DURATION = tAcc;
+
+function lineSegs(list, color, width, dashed = false) {
+  const g = new LineSegmentsGeometry();
+  g.setPositions(list.flatMap((s) => [s.a.x, s.a.y, s.a.z, s.b.x, s.b.y, s.b.z]));
+  const m = new LineMaterial({ color, linewidth: width, dashed, dashSize: 0.018, gapSize: 0.014 });
+  m.resolution.set(W, H);
+  const l = new LineSegments2(g, m); if (dashed) l.computeLineDistances();
+  return l;
+}
+const pathGroup = new THREE.Group(); scene.add(pathGroup);
+const outlineLine = (() => {
+  const l = lineSegs(outline.reduce((acc, v, k) => (k % 2 ? acc[acc.length - 1].b = v : acc.push({ a: v }), acc), []), 0x39414b, 1.6);
+  l.material.transparent = true; l.material.opacity = 0.75; scene.add(l); return l;
+})();
+pathGroup.add(lineSegs(segs.filter((s) => s.on), 0x1f6feb, 4));
+pathGroup.add(lineSegs(segs.filter((s) => !s.on), 0x7f8995, 1.8, true));
+const processSegs = segs.filter((s) => s.on);
+const progressLine = lineSegs(processSegs, 0x1e9e50, 5); progressLine.renderOrder = 2; pathGroup.add(progressLine);
+Object.assign(progressLine.material, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });   // 叠在蓝线之上，避免闪烁
+
+function arrows(on, color) {                   // 沿路径按固定间距放小箭头
+  const cone = new THREE.ConeGeometry(0.009, 0.026, 12);
+  const list = []; let acc = 0;
+  segs.forEach((s) => {
+    const len = s.a.distanceTo(s.b); if (s.on !== on) { acc = 0; return; }
+    while (acc < len) { list.push({ p: s.a.clone().lerp(s.b, acc / len), d: s.b.clone().sub(s.a).normalize(), t: s.t0 + (s.t1 - s.t0) * acc / len }); acc += 0.16; }
+    acc -= len;
+  });
+  const mesh = new THREE.InstancedMesh(cone, new THREE.MeshBasicMaterial({ color: 0xffffff }), list.length);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), one = new THREE.Vector3(1, 1, 1);
+  const c = new THREE.Color(color);
+  list.forEach((a, i) => { q.setFromUnitVectors(up, a.d); m.compose(a.p, q, one); mesh.setMatrixAt(i, m); mesh.setColorAt(i, c); });
+  mesh.userData = { list, color: c };
+  return mesh;
+}
+const GREEN = new THREE.Color(0x1e9e50);
+function colorArrows(t) {                      // 已走过的工艺段箭头随进度变绿；t 为 null 时全部恢复
+  const { list, color } = processArrows.userData;
+  list.forEach((a, i) => processArrows.setColorAt(i, t !== null && a.t <= t ? GREEN : color));
+  processArrows.instanceColor.needsUpdate = true;
+}
+const processArrows = arrows(true, 0x1f6feb);
+pathGroup.add(processArrows);
+pathGroup.add(arrows(false, 0x7f8995));
+function label(text, cls, p) {
+  const outer = document.createElement('div');
+  outer.innerHTML = `<span class="path-label ${cls}">${text}</span>`;
+  const o = new CSS2DObject(outer); o.position.copy(p); return o;
+}
+const startLabel = label('起点', 'start', pts[1].p);
+const endLabel = label('终点', 'end', pts[pts.length - 2].p);
+pathGroup.add(startLabel, endLabel);
+
+/* ---------- 示意机械臂（只在轨迹动画中显示） ---------- */
+const L1 = 0.70, L2 = 0.62, LT = 0.20, SH_Z = 0.45, SH_OFF = 0.10;
+const mLight = new THREE.MeshStandardMaterial({ color: 0xe9ecf0, roughness: 0.42, metalness: 0.1 });
+const mDark = new THREE.MeshStandardMaterial({ color: 0x48505a, roughness: 0.5, metalness: 0.3 });
+const mJoint = new THREE.MeshStandardMaterial({ color: 0x2c333b, roughness: 0.4, metalness: 0.4 });
+const cylZ = (r0, r1, len, m) => { const g = new THREE.CylinderGeometry(r0, r1, len, 36); g.rotateX(Math.PI / 2); return new THREE.Mesh(g, m); };
+const cylY = (r, len, m) => new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 36), m);
+const boxZ = (w, d, len, m) => { const g = new THREE.BoxGeometry(w, d, len); g.translate(0, 0, len / 2); return new THREE.Mesh(g, m); };
+const robot = new THREE.Group(); scene.add(robot);
+const base = cylZ(0.17, 0.19, 0.18, mDark); base.position.z = 0.09; robot.add(base);
+const j1 = new THREE.Group(); j1.position.z = 0.18; robot.add(j1);
+const turret = cylZ(0.13, 0.15, 0.22, mLight); turret.position.z = 0.11; j1.add(turret);
+const j2 = new THREE.Group(); j2.position.set(SH_OFF, 0, SH_Z - 0.18); j1.add(j2);
+j2.add(cylY(0.10, 0.25, mJoint)); j2.add(boxZ(0.13, 0.15, L1, mLight));
+const j3 = new THREE.Group(); j3.position.z = L1; j2.add(j3);
+j3.add(cylY(0.085, 0.21, mJoint)); j3.add(boxZ(0.10, 0.11, L2, mLight));
+const j5 = new THREE.Group(); j5.position.z = L2; j3.add(j5);
+j5.add(cylY(0.06, 0.15, mJoint));
+const head = cylZ(0.05, 0.035, LT - 0.04, mDark); head.position.z = (LT - 0.04) / 2; j5.add(head);
+const nozzle = cylZ(0.022, 0.012, 0.04, new THREE.MeshStandardMaterial({ color: 0x2f6fed, roughness: 0.3, emissive: 0x0b2a66 }));
+nozzle.position.z = LT - 0.02; j5.add(nozzle);
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function pose(p) {                             // 简化逆解：工具竖直朝下
+  const wx = p.x, wy = p.y, wz = p.z + LT;
+  j1.rotation.z = Math.atan2(wy, wx);
+  const r = Math.hypot(wx, wy) - SH_OFF, hh = wz - SH_Z;
+  const D = Math.min(Math.hypot(r, hh), L1 + L2 - 1e-4);
+  const a = Math.atan2(r, hh);
+  const b = Math.acos(clamp((L1 * L1 + D * D - L2 * L2) / (2 * L1 * D), -1, 1));
+  const g = Math.acos(clamp((L1 * L1 + L2 * L2 - D * D) / (2 * L1 * L2), -1, 1));
+  const t2 = a - b, t3 = Math.PI - g;
+  j2.rotation.y = t2; j3.rotation.y = t3; j5.rotation.y = Math.PI - t2 - t3;
+}
+function pointAt(t) {
+  const s = segs.find((x) => t <= x.t1) || segs[segs.length - 1];
+  return s.a.clone().lerp(s.b, clamp((t - s.t0) / (s.t1 - s.t0 || 1), 0, 1));
+}
+function setProgress(t) {
+  const n = processSegs.findIndex((x) => x.t1 > t);
+  progressLine.geometry.instanceCount = n < 0 ? processSegs.length : n;
+  progressLine.visible = true;
+  colorArrows(t);
+}
+
+/* ---------- 视角 ---------- */
+const TARGET = new THREE.Vector3(CX, 0, 0.33);
+const VIEWS = {
+  default: { target: TARGET, dir: new THREE.Vector3(1, -1, 0.8).normalize(), dist: 2.05 },
+  wide: { target: new THREE.Vector3(0.58, -0.02, 0.48), dir: new THREE.Vector3(1, -1.05, 0.72).normalize(), dist: 3.05 },
+};
+let viewName = null;
+function setView(name) {
+  const v = VIEWS[name]; viewName = name;
+  controls.target.copy(v.target);
+  camera.position.copy(v.target).addScaledVector(v.dir, v.dist);
+  controls.update();
+}
+document.getElementById('vp-reset').addEventListener('click', () => { setView(viewName || 'default'); render(); });
+
+/* ---------- 按画面配置场景 ---------- */
+let animating = false, t0 = 0;
+const fmt = (sec) => `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(Math.floor(sec % 60)).padStart(2, '0')}`;
+function applyScene(sc) {
+  const s = sc.scene || {};
+  workpiece.visible = s.model && s.model !== 'none';
+  surfaces.forEach((x) => {
+    x.mesh.material = s.model === 'faded' ? MAT.faded
+      : s.model === 'select' ? (!x.selectable ? MAT.unselectable : PLAN_SURFACES.includes(x.id) ? MAT.selected : MAT.normal)
+      : MAT.normal;
+  });
+  outlineLine.visible = s.model === 'select';
+  pathGroup.visible = !!s.path;
+  startLabel.visible = endLabel.visible = !!s.path;
+  progressLine.visible = false;
+  colorArrows(null);
+  if (typeof s.progress === 'number') setProgress(DURATION * s.progress);
+  robot.visible = !!s.robot;
+  animating = !!s.animate;
+  setView(s.camera || 'default');
+  if (animating) {
+    if (window.SV.CAPTURE) frame(DURATION * 0.36);
+    else { t0 = performance.now(); requestAnimationFrame(loop); }
+  }
+  render();
+}
+function frame(t) {
+  pose(pointAt(t)); setProgress(t);
+  const f = t / DURATION;
+  document.getElementById('ab-fill').style.width = f * 100 + '%';
+  document.getElementById('ab-thumb').style.left = f * 100 + '%';
+  document.getElementById('ab-time').textContent = `${fmt(t)} / ${fmt(DURATION)}`;
+}
+function loop(now) {
+  if (!animating) return;
+  frame(((now - t0) / 1000 / 26 % 1) * DURATION);   // 示意：约 26 秒播放完整条路径
+  render();
+  requestAnimationFrame(loop);
+}
+function render() { renderer.render(scene, camera); labelRenderer.render(scene, camera); }
+controls.addEventListener('change', () => { if (!animating) render(); });
+window.addEventListener('screen', (e) => applyScene(e.detail));
+applyScene(window.SV.current);
+document.body.dataset.ready = '1';
+</script>
+<script>
+// three.js 加载失败（无网络）时给出提示
+setTimeout(() => { if (!document.body.dataset.ready) document.getElementById('vp-fallback').style.display = 'flex'; }, 8000);
+</script>
+</body>
+</html>
