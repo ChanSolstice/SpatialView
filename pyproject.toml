@@ -1,0 +1,34 @@
+[project]
+name = "spatialview-tools"
+version = "0.1.0"
+description = "SpatialView 的 Python 工具：样例数据生成、文件校验、接口检查，以及 mock 服务端的纯 Python 部分"
+readme = "README.md"
+# 与 ROS 2 Humble（Ubuntu 22.04）的 Python 3.10 一致
+requires-python = ">=3.10,<3.11"
+dependencies = [
+    "numpy>=1.26",
+    "websocket-client>=1.8",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.13",
+]
+
+[tool.uv]
+# 工具以 `uv run python -m tools.<名称>` 的方式在仓库根目录运行，不打包安装
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tools"]
+pythonpath = ["."]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["app", "docs", "ros2_ws/build", "ros2_ws/install", "ros2_ws/log"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]

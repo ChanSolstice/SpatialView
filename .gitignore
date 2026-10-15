@@ -1,0 +1,26 @@
+# Node / 前端
+node_modules/
+app/dist/
+app/dev-dist/
+*.tsbuildinfo
+.vite/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# ROS 2（colcon 构建产物）
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
+
+# 生成的样例数据（由 tools/sample_data 生成，不提交）
+samples/
+
+# 编辑器与系统
+.vscode/
+.idea/
+.DS_Store
