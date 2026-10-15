@@ -49,9 +49,15 @@ uv run ruff check . # 代码检查
 uv run python -m tools.sample_data --size large   # 生成样例到 samples/large
 uv run python -m tools.validate --model 模型.glb --plan 规划.json
 
+# ROS 2 包：在 ros:humble 容器中执行（需要 Docker）
+scripts/ros.sh colcon build
+scripts/ros.sh ros2 interface show spatialview_msgs/msg/SystemState
+
 # 与 CI 相同的全部检查
 ./scripts/check.sh
 ```
+
+当前用户没有 Docker 权限时，在命令前加 `DOCKER="sudo docker"`，例如 `DOCKER="sudo docker" ./scripts/check.sh`。
 
 ## 分支
 

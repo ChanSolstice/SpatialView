@@ -1,0 +1,6 @@
+# 激光开关（接口文档 6.6）。关闭在任何阶段、任何设备状态下都受理。
+bool on                         # true 开启，false 关闭
+---
+string code                     # 状态码："OK" 表示受理，其他值为拒绝原因（接口文档 7.1）
+string detail                   # 补充说明，可为空（7.4）
+SystemState state               # 处理该指令后的完整状态
