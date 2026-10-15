@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>spatialview_mock</name>
+  <version>1.0.0</version>
+  <description>SpatialView mock 服务端：实现服务端对接接口文档的全部接口和服务端行为，用模拟数据代替设备和算法；附模拟的机械臂驱动。</description>
+  <maintainer email="channing53533@gmail.com">SpatialView APP 团队</maintainer>
+  <license>Proprietary</license>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>builtin_interfaces</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>std_srvs</exec_depend>
+  <exec_depend>spatialview_msgs</exec_depend>
+  <exec_depend>spatialview_mock_msgs</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

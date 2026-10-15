@@ -161,7 +161,9 @@ class MockCore:
         self.started_at = clock()
         self.seq = 0
         self.last_published: dict | None = None
-        self.last_publish_at: float | None = None
+        self.next_periodic: float | None = (
+            None  # 下一次定时发布的时刻，按固定时间表推进，不累积误差
+        )
 
         self.phase = Phase.NO_MODEL
         self.origin_phase = Phase.NO_MODEL
@@ -270,7 +272,6 @@ class MockCore:
         self.seq += 1
         state = self._snapshot()
         self.last_published = state
-        self.last_publish_at = self.clock()
         self.hooks.publish(state)
         return state
 
@@ -281,11 +282,14 @@ class MockCore:
     def tick(self) -> None:
         """推进模拟并按规则处理设备变化；到了周期或有字段变化时发布。调用方每 50 毫秒左右调用一次。"""
         self._update()
-        due = (
-            self.last_publish_at is None
-            or self.clock() - self.last_publish_at >= self.config.publish_period
-        )
-        if due or self._significant(self._snapshot()) != self._significant(self.last_published):
+        now = self.clock()
+        period = self.config.publish_period
+        if self.next_periodic is None or now >= self.next_periodic:
+            self.publish()
+            self.next_periodic = (self.next_periodic or now) + period
+            if self.next_periodic <= now:  # 落后超过一个周期时重新对齐
+                self.next_periodic = now + period
+        elif self._significant(self._snapshot()) != self._significant(self.last_published):
             self.publish()
 
     def _update(self) -> None:
