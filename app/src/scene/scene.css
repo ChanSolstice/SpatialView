@@ -1,0 +1,36 @@
+/* 场景内标签（前端UI设计第 5 节）：起点、终点为白色胶囊，14 号粗体，左侧圆点；位于路径点上方 24 像素 */
+.path-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.14);
+  transform: translateY(-24px);
+}
+
+.path-label::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  content: '';
+}
+
+.path-label-end::before {
+  background: var(--text);
+}
+
+/* CSS2DRenderer 的标签层：与画布重合，不接收触摸 */
+.scene-labels {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}

@@ -44,6 +44,9 @@ const PLAN = {
   plan_surface_ids: ['s1', 's2'],
 }
 
+/** stateForPhase 中模型和规划的 ID。 */
+export const STATE_IDS = { model: MODEL.model_id, plan: PLAN.plan_id }
+
 /** 与阶段相符的状态：模型和规划按阶段给出，机械臂在运动阶段为运行中、暂停阶段为暂停。 */
 export function stateForPhase(phase: Phase, overrides: Partial<SystemState> = {}): SystemState {
   const hasModel = phase !== 'NO_MODEL'

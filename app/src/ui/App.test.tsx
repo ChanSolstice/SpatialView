@@ -281,6 +281,95 @@ describe('选面（需求 6.4）', () => {
   })
 })
 
+describe('轨迹动画（需求 6.6）', () => {
+  async function enter() {
+    const socket = await connect(stateForPhase('PLAN_READY'))
+    // 规划和机械臂加载完成后才可用
+    await flush()
+    expect(button('animate').disabled).toBe(false)
+    fireEvent.click(button('animate'))
+    return socket
+  }
+  const bar = () => screen.getByTestId('playbar')
+  const animation = () => runtime.store.getState().animation
+
+  it('进入后显示标签和播放条，从头开始播放；不向服务端发送任何指令', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY'))
+    await flush()
+    const calls = socket.calls.length
+    fireEvent.click(button('animate'))
+    expect(screen.getByTestId('animation-tag').textContent).toBe('轨迹动画 · 非实际位置')
+    expect(bar().textContent).toContain('00:00 / 00:10')
+    expect(within(bar()).getByRole('button', { name: '暂停' })).toBeTruthy()
+    expect(animation()).toMatchObject({ time: 0, playing: true, speed: 1 })
+    expect(button('animate').className).toContain('is-active')
+    expect(button('animate').disabled).toBe(true)
+    expect(socket.calls.length).toBe(calls)
+  })
+
+  it('暂停、继续；播放结束后停在最后一帧，再按播放从头开始；重新播放', async () => {
+    await enter()
+    fireEvent.click(within(bar()).getByRole('button', { name: '暂停' }))
+    expect(animation().playing).toBe(false)
+    act(() => runtime.store.getState().setAnimation({ time: 10, playing: false }))
+    expect(bar().textContent).toContain('00:10 / 00:10')
+    fireEvent.click(within(bar()).getByRole('button', { name: '播放' }))
+    expect(animation()).toMatchObject({ time: 0, playing: true })
+    act(() => runtime.store.getState().setAnimation({ time: 4 }))
+    fireEvent.click(within(bar()).getByRole('button', { name: '重新播放' }))
+    expect(animation()).toMatchObject({ time: 0, playing: true })
+  })
+
+  it('倍速按配置的档位切换，再次进入时沿用', async () => {
+    await enter()
+    const speeds = within(bar()).getByRole('group', { name: '倍速' })
+    expect(
+      within(speeds)
+        .getAllByRole('button')
+        .map((b) => b.textContent),
+    ).toEqual(['1×', '5×', '20×'])
+    fireEvent.click(within(speeds).getByRole('button', { name: '20×' }))
+    expect(animation().speed).toBe(20)
+    expect(within(speeds).getByRole('button', { name: '20×' }).getAttribute('aria-pressed')).toBe(
+      'true',
+    )
+    fireEvent.click(within(bar()).getByRole('button', { name: '退出' }))
+    fireEvent.click(button('animate'))
+    expect(animation()).toMatchObject({ time: 0, playing: true, speed: 20 })
+  })
+
+  it('拖动进度条：拖动期间暂停，松开后恢复播放', async () => {
+    await enter()
+    const track = within(bar()).getByRole('slider', { name: '播放进度' })
+    track.setPointerCapture = () => {}
+    track.releasePointerCapture = () => {}
+    track.getBoundingClientRect = () => ({ left: 100, width: 200 }) as DOMRect
+    fireEvent.pointerDown(track, { pointerId: 1, clientX: 150 })
+    expect(animation()).toMatchObject({ time: 2.5, playing: false })
+    fireEvent.pointerMove(track, { pointerId: 1, clientX: 260 })
+    expect(animation().time).toBe(8)
+    fireEvent.pointerUp(track, { pointerId: 1, clientX: 260 })
+    expect(animation().playing).toBe(true)
+    expect(track.getAttribute('aria-valuenow')).toBe('8')
+  })
+
+  it('退出：点击退出、返回键；阶段离开规划就绪时自动退出', async () => {
+    const socket = await enter()
+    fireEvent.click(within(bar()).getByRole('button', { name: '退出' }))
+    expect(screen.queryByTestId('playbar')).toBeNull()
+    expect(screen.queryByTestId('animation-tag')).toBeNull()
+
+    fireEvent.click(button('animate'))
+    act(() => platform.back())
+    expect(runtime.store.getState().mode).toBe('browse')
+
+    fireEvent.click(button('animate'))
+    await publish(socket, stateForPhase('EXECUTING'))
+    expect(runtime.store.getState().mode).toBe('browse')
+    expect(screen.queryByTestId('playbar')).toBeNull()
+  })
+})
+
 describe('返回键', () => {
   it('有弹窗时关闭弹窗，处于选面模式时退出模式', async () => {
     await connect(stateForPhase('PLAN_READY'))

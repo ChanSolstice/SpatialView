@@ -5,6 +5,8 @@
  */
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { LoadedModel } from '../assets/model.ts'
+import type { LoadedPlan } from '../assets/path.ts'
+import type { LoadedRobot } from '../assets/robot.ts'
 import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
@@ -47,6 +49,15 @@ type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
 /** 加入队列时由 store 分配 id。 */
 export type DialogInput = WithoutId<Dialog>
 
+/** 轨迹动画的播放状态（需求 6.6），纯本地，不向服务端发送任何指令。 */
+export interface AnimationState {
+  /** 动画时钟，与规划文件的 t 对齐，秒 */
+  time: number
+  playing: boolean
+  /** 倍速，取自配置的档位 */
+  speed: number
+}
+
 export interface Toast {
   id: number
   tone: 'error' | 'success'
@@ -66,8 +77,9 @@ export interface AppState {
   lastResultId: string | null
 
   model: AssetSlot<LoadedModel>
-  /** 规划的解析在阶段 8 加入 */
-  plan: AssetSlot<unknown>
+  plan: AssetSlot<LoadedPlan>
+  /** 机械臂模型，启动时加载一次；id 为 URDF 的路径 */
+  robot: AssetSlot<LoadedRobot>
 
   mode: SceneMode
   /** 选中的 surface_id，本地状态：退出选面后保留，模型变化时清空（需求 6.4）。 */
@@ -76,6 +88,7 @@ export interface AppState {
   selectionBasis: string | null
   /** 每次加 1，三维场景恢复默认视角（需求 6.2）。 */
   viewResets: number
+  animation: AnimationState
   dialogs: Dialog[]
   toast: Toast | null
 }
@@ -94,6 +107,8 @@ export interface AppActions {
   laserOffStarted(): void
   laserOffFinished(): void
   setModel(patch: Partial<AssetSlot<LoadedModel>>): void
+  setPlan(patch: Partial<AssetSlot<LoadedPlan>>): void
+  setRobot(patch: Partial<AssetSlot<LoadedRobot>>): void
   setMode(mode: SceneMode): void
   setSelection(selection: ReadonlySet<string>, basis?: string | null): void
   /** 进入选面：初始选择为当前规划使用的表面，没有规划时为空；相机恢复默认视角（需求 6.4）。 */
@@ -101,6 +116,9 @@ export interface AppActions {
   /** 选面模式中点选表面：未选中则加入，已选中则移除；不可选的表面不响应。 */
   toggleSurface(id: string): void
   resetView(): void
+  /** 进入轨迹动画：从头开始播放；倍速沿用上次选择的档位，不在档位中时取第一档（需求 6.6）。 */
+  enterAnimate(speeds: readonly number[]): void
+  setAnimation(patch: Partial<AnimationState>): void
   pushDialog(dialog: DialogInput): void
   closeDialog(id: number): void
   showToast(toast: Omit<Toast, 'id'>): void
@@ -118,10 +136,12 @@ export const INITIAL_STATE: AppState = {
   lastResultId: null,
   model: { id: null, status: 'idle', data: null, error: null },
   plan: { id: null, status: 'idle', data: null, error: null },
+  robot: { id: null, status: 'idle', data: null, error: null },
   mode: 'browse',
   selection: new Set(),
   selectionBasis: null,
   viewResets: 0,
+  animation: { time: 0, playing: false, speed: 1 },
   dialogs: [],
   toast: null,
 }
@@ -148,6 +168,8 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
     laserOffFinished: () => set((s) => ({ laserOffPending: Math.max(0, s.laserOffPending - 1) })),
 
     setModel: (patch) => set((s) => ({ model: { ...s.model, ...patch } })),
+    setPlan: (patch) => set((s) => ({ plan: { ...s.plan, ...patch } })),
+    setRobot: (patch) => set((s) => ({ robot: { ...s.robot, ...patch } })),
     setMode: (mode) => set({ mode }),
     setSelection: (selection, basis) =>
       set(basis === undefined ? { selection } : { selection, selectionBasis: basis }),
@@ -171,6 +193,16 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
         return { selection }
       }),
     resetView: () => set((s) => ({ viewResets: s.viewResets + 1 })),
+    enterAnimate: (speeds) =>
+      set((s) => ({
+        mode: 'animate',
+        animation: {
+          time: 0,
+          playing: true,
+          speed: speeds.includes(s.animation.speed) ? s.animation.speed : (speeds[0] ?? 1),
+        },
+      })),
+    setAnimation: (patch) => set((s) => ({ animation: { ...s.animation, ...patch } })),
 
     pushDialog: (dialog) =>
       set((s) => {

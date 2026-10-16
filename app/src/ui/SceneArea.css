@@ -82,6 +82,8 @@
 .scene-canvas {
   position: absolute;
   inset: 0;
+  /* 场景内标签（drei Html）的层级限制在画布内，始终在浮层之下 */
+  isolation: isolate;
 }
 
 /* 三维区顶部居中：选面工具条或动画标签、机械臂提示、短时提示，自上而下排列（前端UI设计 4.3） */

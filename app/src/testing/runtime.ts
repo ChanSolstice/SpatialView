@@ -1,9 +1,13 @@
 /** 测试用的 runtime：内存中的 Preferences，假的 rosbridge。不进入打包产物。 */
+import { inThreadLoadPlan } from '../assets/planLoader.ts'
 import { memoryPreferences, type Platform } from '../platform/index.ts'
 import { SERVICES, type SystemState } from '../ros/contract.ts'
 import { startRuntime, type Runtime } from '../runtime.ts'
 import { FakeRosbridge, type FakeSocket } from './fakeRos.ts'
+import { STATE_IDS } from './fixtures.ts'
 import { buildGlb, gridSurface } from './glb.ts'
+import { testPlanJson } from './plan.ts'
+import { testRobotModel } from './robot.ts'
 
 export interface TestPlatform extends Platform {
   resume(): void
@@ -27,8 +31,15 @@ export function testPlatform(): TestPlatform {
   }
 }
 
-/** 文件服务的替身：/models/<model_id>.glb 返回一个有两个可选表面、一个不可选表面的模型。 */
+/**
+ * 文件服务的替身：/models/<model_id>.glb 返回一个有两个可选表面、一个不可选表面的模型；
+ * /plans/<plan_id>.json 返回测试用的规划（model_id 为测试状态中的模型）。
+ */
 export const serveFiles = (async (input: RequestInfo | URL) => {
+  const plan = /\/plans\/([\w-]+)\.json$/.exec(String(input))
+  if (plan?.[1]) {
+    return new Response(JSON.stringify(testPlanJson({ planId: plan[1], modelId: STATE_IDS.model })))
+  }
   const match = /\/models\/([\w-]+)\.glb$/.exec(String(input))
   if (!match) return new Response(null, { status: 404 })
   const surfaces = [
@@ -46,7 +57,12 @@ export async function testRuntime(): Promise<{
 }> {
   const bridge = new FakeRosbridge()
   const platform = testPlatform()
-  const runtime = await startRuntime(platform, { connect: bridge.connect, fetchFile: serveFiles })
+  const runtime = await startRuntime(platform, {
+    connect: bridge.connect,
+    fetchFile: serveFiles,
+    loadPlan: inThreadLoadPlan(serveFiles),
+    loadRobot: () => Promise.resolve(testRobotModel()),
+  })
   return { runtime, bridge, platform }
 }
 

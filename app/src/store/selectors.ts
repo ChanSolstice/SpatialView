@@ -2,6 +2,8 @@
  * 由 store 计算出的界面数据。按钮可用性不存进 store，每次由这里调用 domain 计算（架构设计 5.2）。
  * 计算结果按输入缓存，输入不变时返回同一个对象，React 组件订阅时不会重复渲染。
  */
+import type { LoadedPlan } from '../assets/path.ts'
+import type { LoadedRobot } from '../assets/robot.ts'
 import { availability, type Availability } from '../domain/availability.ts'
 import { alarmSummary, type AlarmSummary } from '../domain/phase.ts'
 import { isCompatibleVersion, unknownValues, type SystemState } from '../ros/contract.ts'
@@ -47,6 +49,36 @@ export const selectInterfaceIssue = memo(
   },
 )
 
+/** 轨迹动画所需的数据（需求 6.6）：规划和机械臂都已加载，关节名一致。 */
+export interface AnimationData {
+  plan: LoadedPlan
+  robot: LoadedRobot
+  /** 规划文件中每个关节对应的 URDF 关节名 */
+  joints: string[]
+}
+
+const selectJointMatch = memo(
+  (s) => [s.plan.data, s.robot.data] as const,
+  (plan, robot) => (plan && robot ? { plan, robot, ...robot.match(plan.data.jointNames) } : null),
+)
+
+export const selectAnimationData = memo(
+  (s) => [selectJointMatch(s)] as const,
+  (match): AnimationData | null =>
+    match && match.missing.length === 0
+      ? { plan: match.plan, robot: match.robot, joints: match.joints }
+      : null,
+)
+
+/**
+ * 规划文件中有、机械臂模型中没有的关节（本地告警"规划数据与机械臂模型不匹配"，需求 6.6、9.1）；
+ * 为 null 表示一致，或规划、机械臂还没有加载。
+ */
+export const selectJointMismatch = memo(
+  (s) => [selectJointMatch(s)] as const,
+  (match): string | null => (match && match.missing.length > 0 ? match.missing.join('，') : null),
+)
+
 export const selectAvailability = memo(
   (s) =>
     [
@@ -59,8 +91,20 @@ export const selectAvailability = memo(
       s.selection,
       s.model.status,
       s.plan.status,
+      selectAnimationData(s),
     ] as const,
-  (status, state, issue, inflight, laserOffPending, mode, selection, model, plan): Availability =>
+  (
+    status,
+    state,
+    issue,
+    inflight,
+    laserOffPending,
+    mode,
+    selection,
+    model,
+    plan,
+    animation,
+  ): Availability =>
     availability({
       connected: status === 'connected',
       state,
@@ -71,8 +115,7 @@ export const selectAvailability = memo(
       selectionSize: selection.size,
       model,
       plan,
-      // 规划解析和关节名检查在阶段 8 实现，在此之前轨迹动画不可用
-      animationReady: false,
+      animationReady: animation !== null,
     }),
 )
 

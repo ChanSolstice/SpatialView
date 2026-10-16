@@ -23,7 +23,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"${DC[@]}" up --build -d
+# driver、mock、rosbridge 共用 spatialview-dev 镜像，只构建一次再启动：没有 buildx 时 compose 会并行构建
+# 同一个镜像，给镜像打标签时可能冲突（AlreadyExists）
+"${DC[@]}" build mock
+"${DC[@]}" up -d
 if ! uv run python -m tools.interface_check --rosbridge ws://localhost:19090 --http http://localhost:18080 \
   --connect-timeout 90 --allow-motion --allow-laser --allow-estop \
   --urdf app/public/robot/aubo_i5H_dev.urdf --tcp-link tcp_link; then
