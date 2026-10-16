@@ -1,0 +1,12 @@
+# 开发镜像只需要 ros2_ws/src、tools、deploy 和开发用 URDF
+**/node_modules
+**/__pycache__
+.git
+.venv
+samples
+ros2_ws/build
+ros2_ws/install
+ros2_ws/log
+app
+!app/public/robot/aubo_i5H_dev.urdf
+docs
