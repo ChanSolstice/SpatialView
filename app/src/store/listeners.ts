@@ -19,8 +19,8 @@ export function installListeners(store: AppStore): () => void {
     }
 
     // 模型 ID 变化时清空选择（需求 6.4）
-    if ((s.server?.model_id ?? '') !== (prev.server?.model_id ?? '') && s.selection.size > 0) {
-      s.setSelection(new Set())
+    if ((s.server?.model_id ?? '') !== (prev.server?.model_id ?? '') && s.selectionBasis !== null) {
+      s.setSelection(new Set(), null)
     }
 
     // 对话框打开期间，对应操作因状态变化已不可用时，自动关闭，不发送指令（需求 5.4）
