@@ -7,11 +7,13 @@ import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useRef, type ComponentRef } from 'react'
 import { Vector3, type PerspectiveCamera } from 'three'
 import { measure, MODEL_DOWNLOADED_MARK } from '../assets/loader.ts'
-import { BOUNDARY_MATERIAL } from '../assets/materials.ts'
+import { SCREEN_LINE_MATERIALS } from '../assets/materials.ts'
 import { sceneContent } from '../domain/phase.ts'
 import { useApp, useRuntime } from '../ui/runtimeContext.ts'
 import { defaultCameraPosition, EMPTY_RADIUS, fitDistance } from './camera.ts'
 import { applyAppearance } from './materialFor.ts'
+import { TcpPath } from './TcpPath.tsx'
+import './scene.css'
 
 /** 相机：Z 轴向上，绕观察中心旋转，双指缩放，不能平移；新模型加载完成和请求恢复默认视角时回到默认视角。 */
 function CameraRig() {
@@ -62,7 +64,6 @@ function Workpiece() {
   const selection = useApp((s) => s.selection)
   const phase = useApp((s) => s.server?.phase ?? null)
   const invalidate = useThree((s) => s.invalidate)
-  const size = useThree((s) => s.size)
   const { workpiece } = sceneContent(phase, mode)
   const threshold = config.config.scene.tap_threshold_px
 
@@ -71,11 +72,6 @@ function Workpiece() {
     applyAppearance(model, workpiece, selection)
     invalidate()
   }, [invalidate, model, selection, workpiece])
-
-  useEffect(() => {
-    BOUNDARY_MATERIAL.resolution.set(size.width, size.height)
-    invalidate()
-  }, [invalidate, size])
 
   // 记录模型下载完成到第一次绘制的耗时（需求 12.2），绘制在下一帧完成
   useEffect(() => {
@@ -102,6 +98,17 @@ function Workpiece() {
       <primitive object={model.boundaries} />
     </>
   )
+}
+
+/** 线宽以屏幕像素计的材质（表面分界线、路径）按画布尺寸设置分辨率。 */
+function ScreenLines() {
+  const size = useThree((s) => s.size)
+  const invalidate = useThree((s) => s.invalidate)
+  useEffect(() => {
+    for (const material of SCREEN_LINE_MATERIALS) material.resolution.set(size.width, size.height)
+    invalidate()
+  }, [invalidate, size])
+  return null
 }
 
 /** 地面网格：base_link 的 XY 平面（z = 0），以原点为中心，作为方向和尺度参照（需求 6.3）。 */
@@ -141,8 +148,10 @@ export function SceneCanvas() {
       <directionalLight position={[3.5, -1.2, 2.6]} intensity={2.1} />
       <directionalLight position={[-2, 2.5, 1.5]} intensity={0.7} color={0xe8f0ff} />
       <Ground />
+      <ScreenLines />
       <CameraRig />
       <Workpiece />
+      <TcpPath />
       {import.meta.env.DEV && <DevHandle />}
     </Canvas>
   )
