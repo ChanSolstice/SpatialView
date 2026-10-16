@@ -78,3 +78,98 @@
   border-radius: 4px;
   background: var(--primary);
 }
+
+.scene-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+/* 三维区顶部居中：选面工具条或动画标签、机械臂提示、短时提示，自上而下排列（前端UI设计 4.3） */
+.scene-top {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.scene-top > * {
+  pointer-events: auto;
+}
+
+.view-reset {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: var(--z-overlay);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.view-reset .ic {
+  width: 20px;
+  height: 20px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 18px;
+  border: 1px solid var(--divider);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(20, 30, 45, 0.14);
+}
+
+.toolbar-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-right: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.toolbar-count::before {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  background: var(--select);
+  content: '';
+}
+
+.tool-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 16px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tool-button .ic {
+  width: 20px;
+  height: 20px;
+}
