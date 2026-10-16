@@ -51,7 +51,7 @@ export function ButtonPanel() {
     const s = store.getState()
     switch (view.action) {
       case 'enterSelect':
-        return s.setMode('select')
+        return s.enterSelect()
       case 'enterAnimate':
         return s.setMode('animate')
       case 'laserOff':

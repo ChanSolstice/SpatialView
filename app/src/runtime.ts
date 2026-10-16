@@ -2,6 +2,7 @@
  * 启动时组装各模块（架构设计 7.1）：合并配置、建立 store、连接管理、状态同步和指令通道，
  * 注册前后台和返回键。界面通过 RuntimeProvider 取得这里的对象。
  */
+import { installModelLoader } from './assets/loader.ts'
 import { devServerUrls, loadConfig, type LoadedConfig } from './config/load.ts'
 import type { Platform } from './platform/index.ts'
 import { createCommands, type Commands } from './ros/commands.ts'
@@ -32,9 +33,15 @@ export function handleBack(store: AppStore): void {
   else if (s.mode !== 'browse') s.setMode('browse')
 }
 
+export interface RuntimeOptions {
+  connect?: Connect
+  /** 下载模型和规划文件（测试中替换） */
+  fetchFile?: typeof fetch
+}
+
 export async function startRuntime(
   platform: Platform,
-  connect: Connect = connectRoslib,
+  { connect = connectRoslib, fetchFile }: RuntimeOptions = {},
 ): Promise<Runtime> {
   const config = await loadConfig(platform.preferences, devServerUrls())
   const { server, timing } = config.config
@@ -60,6 +67,7 @@ export async function startRuntime(
   const commands = createCommands(store, connection, sync, timing)
   const cleanups = [
     installListeners(store),
+    installModelLoader(store, server.http_base_url, fetchFile),
     // Android 可能在后台暂停了 WebView 的定时器和网络，回到前台时刷新连接（需求 7.3）
     platform.onResume(() => connection.refresh(false)),
     platform.onBackButton(() => handleBack(store)),

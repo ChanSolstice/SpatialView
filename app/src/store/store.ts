@@ -4,15 +4,20 @@
  * ui、scene 写场景模式、选择集合和弹窗队列。
  */
 import { createStore, type StoreApi } from 'zustand/vanilla'
+import type { LoadedModel } from '../assets/model.ts'
 import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
 import type { SystemState } from '../ros/contract.ts'
 
-export interface AssetSlot {
-  /** 对应的 model_id / plan_id。 */
+export interface AssetSlot<T> {
+  /** 正在加载或已加载的 model_id / plan_id；为 null 表示没有。 */
   id: string | null
   status: AssetStatus
+  /** 当前显示的数据。新的准备好之前保留旧的，准备好之后再替换（架构设计 5.6）。 */
+  data: T | null
+  /** 加载失败的原因（本地告警，需求 9.1）。 */
+  error: string | null
 }
 
 export interface ConnState {
@@ -60,11 +65,17 @@ export interface AppState {
   laserOffPending: number
   lastResultId: string | null
 
-  model: AssetSlot
-  plan: AssetSlot
+  model: AssetSlot<LoadedModel>
+  /** 规划的解析在阶段 8 加入 */
+  plan: AssetSlot<unknown>
 
   mode: SceneMode
+  /** 选中的 surface_id，本地状态：退出选面后保留，模型变化时清空（需求 6.4）。 */
   selection: ReadonlySet<string>
+  /** 选择集合是在哪个模型和规划上初始化的；与当前不同时，进入选面时重新取初始选择。 */
+  selectionBasis: string | null
+  /** 每次加 1，三维场景恢复默认视角（需求 6.2）。 */
+  viewResets: number
   dialogs: Dialog[]
   toast: Toast | null
 }
@@ -82,8 +93,14 @@ export interface AppActions {
   releaseCommand(): void
   laserOffStarted(): void
   laserOffFinished(): void
+  setModel(patch: Partial<AssetSlot<LoadedModel>>): void
   setMode(mode: SceneMode): void
-  setSelection(selection: ReadonlySet<string>): void
+  setSelection(selection: ReadonlySet<string>, basis?: string | null): void
+  /** 进入选面：初始选择为当前规划使用的表面，没有规划时为空；相机恢复默认视角（需求 6.4）。 */
+  enterSelect(): void
+  /** 选面模式中点选表面：未选中则加入，已选中则移除；不可选的表面不响应。 */
+  toggleSurface(id: string): void
+  resetView(): void
   pushDialog(dialog: DialogInput): void
   closeDialog(id: number): void
   showToast(toast: Omit<Toast, 'id'>): void
@@ -99,10 +116,12 @@ export const INITIAL_STATE: AppState = {
   inflight: null,
   laserOffPending: 0,
   lastResultId: null,
-  model: { id: null, status: 'idle' },
-  plan: { id: null, status: 'idle' },
+  model: { id: null, status: 'idle', data: null, error: null },
+  plan: { id: null, status: 'idle', data: null, error: null },
   mode: 'browse',
   selection: new Set(),
+  selectionBasis: null,
+  viewResets: 0,
   dialogs: [],
   toast: null,
 }
@@ -128,8 +147,30 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
     laserOffStarted: () => set((s) => ({ laserOffPending: s.laserOffPending + 1 })),
     laserOffFinished: () => set((s) => ({ laserOffPending: Math.max(0, s.laserOffPending - 1) })),
 
+    setModel: (patch) => set((s) => ({ model: { ...s.model, ...patch } })),
     setMode: (mode) => set({ mode }),
-    setSelection: (selection) => set({ selection }),
+    setSelection: (selection, basis) =>
+      set(basis === undefined ? { selection } : { selection, selectionBasis: basis }),
+    enterSelect: () =>
+      set((s) => {
+        const server = s.server
+        const basis = `${server?.model_id ?? ''}|${server?.plan_id ?? ''}`
+        let selection = s.selection
+        if (basis !== s.selectionBasis) {
+          const surfaces = s.model.data?.surfaces
+          const planned = server?.plan_id ? server.plan_surface_ids : []
+          selection = new Set(planned.filter((id) => !surfaces || surfaces.get(id)?.selectable))
+        }
+        return { mode: 'select', selection, selectionBasis: basis, viewResets: s.viewResets + 1 }
+      }),
+    toggleSurface: (id) =>
+      set((s) => {
+        if (s.mode !== 'select' || !s.model.data?.surfaces.get(id)?.selectable) return {}
+        const selection = new Set(s.selection)
+        if (!selection.delete(id)) selection.add(id)
+        return { selection }
+      }),
+    resetView: () => set((s) => ({ viewResets: s.viewResets + 1 })),
 
     pushDialog: (dialog) =>
       set((s) => {

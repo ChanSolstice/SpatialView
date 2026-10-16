@@ -9,6 +9,9 @@ import { answerGet, testRuntime, type TestPlatform } from '../testing/runtime.ts
 import { App } from './App.tsx'
 import { RuntimeContext } from './runtimeContext.ts'
 
+// jsdom 没有 WebGL，三维场景在浏览器验证中检查
+vi.mock('../scene/SceneCanvas.tsx', () => ({ SceneCanvas: () => null }))
+
 let runtime: Runtime
 let bridge: FakeRosbridge
 let platform: TestPlatform
@@ -234,6 +237,47 @@ describe('断线与刷新连接', () => {
     expect(first.isOpen).toBe(false)
     await flush()
     expect(bridge.sockets).toHaveLength(2)
+  })
+})
+
+describe('选面（需求 6.4）', () => {
+  it('工具条显示已选数量，可以清空和退出；开始规划发送当前选择并退出选面', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY'))
+    fireEvent.click(button('select'))
+    const toolbar = screen.getByTestId('selection-toolbar')
+    expect(toolbar.textContent).toContain('已选 2 个表面')
+    act(() => runtime.store.getState().toggleSurface('s1'))
+    expect(toolbar.textContent).toContain('已选 1 个表面')
+
+    fireEvent.click(button('plan'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '开始规划' }))
+    expect(socket.calls.at(-1)?.request).toEqual({
+      model_id: 'model_20261015T080000',
+      surface_ids: ['s2'],
+    })
+    await reply(socket, SERVICES.startPlan.name, 'OK', stateForPhase('PLANNING'))
+    expect(screen.queryByTestId('selection-toolbar')).toBeNull()
+  })
+
+  it('清空选择、退出选面', async () => {
+    await connect(stateForPhase('PLAN_READY'))
+    fireEvent.click(button('select'))
+    fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
+    expect(screen.getByTestId('selection-toolbar').textContent).toContain('已选 0 个表面')
+    fireEvent.click(screen.getByRole('button', { name: '退出选面' }))
+    expect(screen.queryByTestId('selection-toolbar')).toBeNull()
+    expect(button('scan').disabled).toBe(false)
+  })
+
+  it('模型加载期间显示加载卡片，依赖模型的按钮不可用（需求 5.3 规则 8）', async () => {
+    await connect(stateForPhase('MODEL_READY'))
+    act(() => runtime.store.getState().setModel({ id: 'model_next', status: 'loading' }))
+    expect(screen.getByTestId('progress-card').textContent).toContain('正在加载模型…')
+    expect(button('select').disabled).toBe(true)
+    expect(button('scan').disabled).toBe(false)
+    act(() => runtime.store.getState().setModel({ status: 'ready' }))
+    expect(screen.queryByTestId('progress-card')).toBeNull()
+    expect(button('select').disabled).toBe(false)
   })
 })
 
