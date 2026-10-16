@@ -6,6 +6,7 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { LoadedModel } from '../assets/model.ts'
 import type { LoadedPlan } from '../assets/path.ts'
+import type { LoadedRobot } from '../assets/robot.ts'
 import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
@@ -68,6 +69,8 @@ export interface AppState {
 
   model: AssetSlot<LoadedModel>
   plan: AssetSlot<LoadedPlan>
+  /** 机械臂模型，启动时加载一次；id 为 URDF 的路径 */
+  robot: AssetSlot<LoadedRobot>
 
   mode: SceneMode
   /** 选中的 surface_id，本地状态：退出选面后保留，模型变化时清空（需求 6.4）。 */
@@ -95,6 +98,7 @@ export interface AppActions {
   laserOffFinished(): void
   setModel(patch: Partial<AssetSlot<LoadedModel>>): void
   setPlan(patch: Partial<AssetSlot<LoadedPlan>>): void
+  setRobot(patch: Partial<AssetSlot<LoadedRobot>>): void
   setMode(mode: SceneMode): void
   setSelection(selection: ReadonlySet<string>, basis?: string | null): void
   /** 进入选面：初始选择为当前规划使用的表面，没有规划时为空；相机恢复默认视角（需求 6.4）。 */
@@ -119,6 +123,7 @@ export const INITIAL_STATE: AppState = {
   lastResultId: null,
   model: { id: null, status: 'idle', data: null, error: null },
   plan: { id: null, status: 'idle', data: null, error: null },
+  robot: { id: null, status: 'idle', data: null, error: null },
   mode: 'browse',
   selection: new Set(),
   selectionBasis: null,
@@ -150,6 +155,7 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
 
     setModel: (patch) => set((s) => ({ model: { ...s.model, ...patch } })),
     setPlan: (patch) => set((s) => ({ plan: { ...s.plan, ...patch } })),
+    setRobot: (patch) => set((s) => ({ robot: { ...s.robot, ...patch } })),
     setMode: (mode) => set({ mode }),
     setSelection: (selection, basis) =>
       set(basis === undefined ? { selection } : { selection, selectionBasis: basis }),

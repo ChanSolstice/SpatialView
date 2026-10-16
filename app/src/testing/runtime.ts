@@ -7,6 +7,7 @@ import { FakeRosbridge, type FakeSocket } from './fakeRos.ts'
 import { STATE_IDS } from './fixtures.ts'
 import { buildGlb, gridSurface } from './glb.ts'
 import { testPlanJson } from './plan.ts'
+import { testRobotModel } from './robot.ts'
 
 export interface TestPlatform extends Platform {
   resume(): void
@@ -60,6 +61,7 @@ export async function testRuntime(): Promise<{
     connect: bridge.connect,
     fetchFile: serveFiles,
     loadPlan: inThreadLoadPlan(serveFiles),
+    loadRobot: () => Promise.resolve(testRobotModel()),
   })
   return { runtime, bridge, platform }
 }
