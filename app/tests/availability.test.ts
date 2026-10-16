@@ -1,7 +1,7 @@
 /**
  * 按钮可用性（需求 5.3）：逐行核对需求文档中的表格，逐条覆盖 8 条全局规则；确认对话框（需求 5.4）；
  * 复位急停（需求 5.6）。规则 1（急停始终可按）不经过 availability，见 src/ros/commands.test.ts 和
- * src/ui/EStopButton.test.tsx。
+ * src/ui/App.test.tsx 的"急停"。
  */
 import { describe, expect, it } from 'vitest'
 import {

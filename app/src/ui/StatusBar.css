@@ -1,0 +1,187 @@
+/* Status Bar（前端UI设计 4.1） */
+.sb {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 64px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--surface);
+}
+
+.sb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-right: 12px;
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.sb-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2f7bf6, var(--run-fg));
+}
+
+.sb-mark .ic {
+  width: 18px;
+  height: 18px;
+  stroke: var(--surface);
+  stroke-width: 2.4;
+}
+
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border-left: 1px solid var(--divider);
+}
+
+.sb-label {
+  color: var(--text-2);
+  font-size: 16px;
+  white-space: nowrap;
+}
+
+.sb-phase {
+  min-width: 64px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-phase.is-unknown {
+  color: var(--text-3);
+}
+
+.sb-spacer {
+  flex: 1;
+}
+
+/* 状态胶囊：高 34，左侧 8 像素圆点 */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 17px;
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pill::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot);
+  content: '';
+}
+
+.pill.is-robot {
+  justify-content: center;
+  min-width: 88px;
+}
+
+.pill.ok {
+  --dot: var(--ok-dot);
+  background: var(--ok-bg);
+  color: var(--ok-fg);
+}
+.pill.run {
+  --dot: var(--run-dot);
+  background: var(--run-bg);
+  color: var(--run-fg);
+}
+.pill.pause {
+  --dot: var(--pause-dot);
+  background: var(--pause-bg);
+  color: var(--pause-fg);
+}
+.pill.fault {
+  --dot: var(--fault-dot);
+  background: var(--fault-bg);
+  color: var(--fault-fg);
+}
+.pill.laser {
+  --dot: var(--laser-dot);
+  background: var(--laser-bg);
+  color: var(--laser-fg);
+}
+.pill.off {
+  --dot: var(--off-dot);
+  background: var(--off-bg);
+  color: var(--off-fg);
+}
+.pill.gray {
+  --dot: var(--gray-dot);
+  background: var(--gray-bg);
+  color: var(--gray-fg);
+}
+.pill.crit {
+  --dot: var(--surface);
+  background: var(--danger);
+  color: var(--surface);
+}
+
+.sb-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  margin-left: 4px;
+  padding: 0 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-button .ic {
+  width: 18px;
+  height: 18px;
+}
+
+.sb-alarm {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 10px 0 12px;
+  border: 1.5px solid var(--divider);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--text-3);
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.sb-alarm .ic {
+  width: 20px;
+  height: 20px;
+}
+
+.sb-alarm.pause {
+  border-color: #efd48c;
+  background: var(--pause-bg);
+  color: var(--pause-fg);
+}
+
+.sb-alarm.fault {
+  border-color: #f2c3bf;
+  background: var(--fault-bg);
+  color: var(--fault-fg);
+}

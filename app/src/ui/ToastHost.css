@@ -1,0 +1,74 @@
+/* 短时提示（前端UI设计 4.5）：三维区顶部居中，宽 560；左侧 6 像素色条，失败红、成功绿 */
+.toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  width: 560px;
+  padding: 14px 14px 14px 18px;
+  border: 1px solid #f2c3bf;
+  border-left: 6px solid var(--danger);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(20, 30, 45, 0.18);
+  transform: translateX(-50%);
+  animation: toast-in 200ms ease-out;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -12px);
+  }
+}
+
+.toast.success {
+  border-color: #bfe3cb;
+  border-left-color: var(--ok-dot);
+}
+
+.toast > .ic {
+  width: 26px;
+  height: 26px;
+  margin-top: 1px;
+  color: var(--danger);
+}
+
+.toast.success > .ic {
+  color: var(--ok-dot);
+}
+
+.toast-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.toast-detail {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+.toast-code {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-family: var(--mono);
+  font-size: 12px;
+}
+
+.toast-close {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-left: auto;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-3);
+}

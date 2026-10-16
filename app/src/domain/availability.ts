@@ -249,6 +249,19 @@ export function isActionAvailable(action: ButtonAction, result: Availability): b
 /** 需要确认的操作。 */
 export type ConfirmAction = 'scan' | 'plan' | 'start' | 'stop' | 'laserOn' | 'resetEstop'
 
+const CONFIRM_ACTIONS: ReadonlySet<string> = new Set<ConfirmAction>([
+  'scan',
+  'plan',
+  'start',
+  'stop',
+  'laserOn',
+  'resetEstop',
+])
+
+export function isConfirmAction(action: ButtonAction): action is ConfirmAction {
+  return CONFIRM_ACTIONS.has(action)
+}
+
 export interface Confirmation {
   title: string
   lines: string[]

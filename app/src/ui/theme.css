@@ -1,0 +1,125 @@
+/* 设计令牌（前端UI设计第 3 节）。组件只引用令牌，不直接写颜色值。 */
+:root {
+  --app-bg: #e9edf1;
+  --surface: #ffffff;
+  --surface-2: #f5f7f9;
+  --border: #cdd4dc;
+  --divider: #e1e6eb;
+  --text: #1b1f24;
+  --text-2: #4d5662;
+  --text-3: #6b7480;
+  --dis-bg: #eef1f4;
+  --dis-fg: #a4acb6;
+  --dis-bd: #e1e5ea;
+
+  --primary: #1f6feb;
+  --primary-press: #1959c4;
+  --primary-tint: #e6effe;
+  --danger: #d93025;
+  --danger-dark: #a8231b;
+  --select: #f28c28;
+  --warn-bg: #fff2d9;
+  --warn-fg: #7a4b00;
+  --warn-bd: #f0c46a;
+
+  /* 状态色：底色、文字色、圆点色 */
+  --ok-bg: #e2f3e7;
+  --ok-fg: #16653a;
+  --ok-dot: #1e9e50;
+  --run-bg: #e4edfd;
+  --run-fg: #1a56b8;
+  --run-dot: #2f6fed;
+  --pause-bg: #fcf0cf;
+  --pause-fg: #7f5100;
+  --pause-dot: #de9b00;
+  --fault-bg: #fbe4e2;
+  --fault-fg: #a8231b;
+  --fault-dot: #d93025;
+  --laser-bg: #ffe6cf;
+  --laser-fg: #983c00;
+  --laser-dot: #ef6c00;
+  --off-bg: #edf0f3;
+  --off-fg: #4d5662;
+  --off-dot: #9aa3ad;
+  --gray-bg: #edf0f3;
+  --gray-fg: #5f6873;
+  --gray-dot: #a9b1ba;
+
+  --font:
+    'PingFang SC', 'Noto Sans CJK SC', 'Source Han Sans SC', 'Microsoft YaHei', system-ui,
+    sans-serif;
+  --mono: ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /* 叠放顺序（前端UI设计第 2 节）：三维区浮层 < 断线遮罩 < 告警面板 < 对话框遮罩 < 急停区、"关闭激光" */
+  --z-overlay: 3;
+  --z-mask: 4;
+  --z-alarms: 15;
+  --z-scrim: 20;
+  --z-safety: 30;
+
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  background: var(--app-bg);
+  color: var(--text);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+.ic {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.spinner {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  border: 3px solid #d5dee9;
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mono {
+  font-family: var(--mono);
+}
