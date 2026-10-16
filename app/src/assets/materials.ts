@@ -1,8 +1,14 @@
 /**
- * 工件和表面分界线的共享材质（前端UI设计第 5 节；架构设计 5.7）。只建这几个，切换时替换 mesh 的材质引用，
- * 不新建材质；随 APP 常驻，不随模型释放。
+ * 工件、表面分界线和 TCP 路径的共享材质（前端UI设计第 5 节；架构设计 5.7）。只建这几个，切换时替换 mesh 的
+ * 材质引用，不新建材质；随 APP 常驻，不随模型、规划释放。
  */
-import { DoubleSide, MeshStandardMaterial, type MeshStandardMaterialParameters } from 'three'
+import {
+  ConeGeometry,
+  DoubleSide,
+  MeshBasicMaterial,
+  MeshStandardMaterial,
+  type MeshStandardMaterialParameters,
+} from 'three'
 import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 
 function workpiece(
@@ -38,3 +44,42 @@ export const BOUNDARY_MATERIAL = new LineMaterial({
   transparent: true,
   opacity: 0.75,
 })
+
+export const PATH_COLORS = {
+  process: 0x1f6feb,
+  travel: 0x7f8995,
+  progress: 0x1e9e50,
+}
+
+/** 工艺段为粗实线，空行程为细虚线（线段 18 毫米、间隔 14 毫米），进度为叠在工艺段上的绿线。 */
+export const PATH_MATERIALS = {
+  process: new LineMaterial({ color: PATH_COLORS.process, linewidth: 4 }),
+  travel: new LineMaterial({
+    color: PATH_COLORS.travel,
+    linewidth: 1.8,
+    dashed: true,
+    dashSize: 0.018,
+    gapSize: 0.014,
+  }),
+  // 负的多边形偏移，叠在蓝线之上不闪烁
+  progress: new LineMaterial({
+    color: PATH_COLORS.progress,
+    linewidth: 5,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -8,
+  }),
+}
+
+/** 线宽以屏幕像素计的材质，画布尺寸变化时由场景更新分辨率。 */
+export const SCREEN_LINE_MATERIALS: readonly LineMaterial[] = [
+  BOUNDARY_MATERIAL,
+  ...Object.values(PATH_MATERIALS),
+]
+
+/** 方向箭头：小圆锥，半径 9 毫米、长 26 毫米，尖端沿 +Y。工艺段的箭头按实例着色，随进度变绿。 */
+export const ARROW_GEOMETRY = new ConeGeometry(0.009, 0.026, 12)
+export const ARROW_MATERIALS = {
+  process: new MeshBasicMaterial({ color: 0xffffff }),
+  travel: new MeshBasicMaterial({ color: PATH_COLORS.travel }),
+}

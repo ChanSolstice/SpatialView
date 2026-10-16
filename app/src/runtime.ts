@@ -3,6 +3,7 @@
  * 注册前后台和返回键。界面通过 RuntimeProvider 取得这里的对象。
  */
 import { installModelLoader } from './assets/loader.ts'
+import { installPlanLoader, type LoadPlan } from './assets/planLoader.ts'
 import { devServerUrls, loadConfig, type LoadedConfig } from './config/load.ts'
 import type { Platform } from './platform/index.ts'
 import { createCommands, type Commands } from './ros/commands.ts'
@@ -35,16 +36,18 @@ export function handleBack(store: AppStore): void {
 
 export interface RuntimeOptions {
   connect?: Connect
-  /** 下载模型和规划文件（测试中替换） */
+  /** 下载模型文件（测试中替换） */
   fetchFile?: typeof fetch
+  /** 下载和解析规划文件，默认在 Worker 中进行（测试中替换） */
+  loadPlan?: LoadPlan
 }
 
 export async function startRuntime(
   platform: Platform,
-  { connect = connectRoslib, fetchFile }: RuntimeOptions = {},
+  { connect = connectRoslib, fetchFile, loadPlan }: RuntimeOptions = {},
 ): Promise<Runtime> {
   const config = await loadConfig(platform.preferences, devServerUrls())
-  const { server, timing } = config.config
+  const { server, timing, scene } = config.config
   const store = createAppStore()
   const sync = createStateSync(store)
   const connection = new ConnectionManager(
@@ -68,6 +71,7 @@ export async function startRuntime(
   const cleanups = [
     installListeners(store),
     installModelLoader(store, server.http_base_url, fetchFile),
+    installPlanLoader(store, server.http_base_url, scene.path_arrow_spacing_m, loadPlan),
     // Android 可能在后台暂停了 WebView 的定时器和网络，回到前台时刷新连接（需求 7.3）
     platform.onResume(() => connection.refresh(false)),
     platform.onBackButton(() => handleBack(store)),

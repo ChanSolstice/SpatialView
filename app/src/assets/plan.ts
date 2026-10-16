@@ -268,3 +268,54 @@ export function parsePlan(
     max,
   }
 }
+
+export interface PlanRequest {
+  /** 规划文件的完整 URL */
+  url: string
+  planId: string
+  modelId: string
+  arrowSpacing: number
+}
+
+export interface PlanResult {
+  data: PlanData
+  /** 下载完成的时刻，Unix 毫秒；Worker 与主线程的 performance 时间起点不同，用它换算 */
+  downloadedAt: number
+  downloadMs: number
+  parseMs: number
+}
+
+/** Worker 交回主线程的消息。 */
+export type PlanReply = ({ ok: true } & PlanResult) | { ok: false; error: string }
+
+/** 下载并解析规划文件。下载失败、HTTP 状态不是 2xx、不是有效的 JSON 时抛出 PlanError。 */
+export async function fetchPlan(
+  request: PlanRequest,
+  fetchFile: typeof fetch,
+  signal?: AbortSignal,
+): Promise<PlanResult> {
+  const started = performance.now()
+  let text: string
+  try {
+    const response = await fetchFile(request.url, { signal })
+    if (!response.ok) throw new PlanError(`下载失败：HTTP ${response.status}`)
+    text = await response.text()
+  } catch (error) {
+    if (error instanceof PlanError || signal?.aborted) throw error
+    throw new PlanError(`下载失败：${error instanceof Error ? error.message : String(error)}`)
+  }
+  const downloaded = performance.now()
+  let json: unknown
+  try {
+    json = JSON.parse(text)
+  } catch {
+    throw new PlanError('规划文件不是有效的 JSON')
+  }
+  const data = parsePlan(json, request, request.arrowSpacing)
+  return {
+    data,
+    downloadedAt: performance.timeOrigin + downloaded,
+    downloadMs: downloaded - started,
+    parseMs: performance.now() - downloaded,
+  }
+}

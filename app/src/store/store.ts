@@ -5,6 +5,7 @@
  */
 import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { LoadedModel } from '../assets/model.ts'
+import type { LoadedPlan } from '../assets/path.ts'
 import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
@@ -66,8 +67,7 @@ export interface AppState {
   lastResultId: string | null
 
   model: AssetSlot<LoadedModel>
-  /** 规划的解析在阶段 8 加入 */
-  plan: AssetSlot<unknown>
+  plan: AssetSlot<LoadedPlan>
 
   mode: SceneMode
   /** 选中的 surface_id，本地状态：退出选面后保留，模型变化时清空（需求 6.4）。 */
@@ -94,6 +94,7 @@ export interface AppActions {
   laserOffStarted(): void
   laserOffFinished(): void
   setModel(patch: Partial<AssetSlot<LoadedModel>>): void
+  setPlan(patch: Partial<AssetSlot<LoadedPlan>>): void
   setMode(mode: SceneMode): void
   setSelection(selection: ReadonlySet<string>, basis?: string | null): void
   /** 进入选面：初始选择为当前规划使用的表面，没有规划时为空；相机恢复默认视角（需求 6.4）。 */
@@ -148,6 +149,7 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
     laserOffFinished: () => set((s) => ({ laserOffPending: Math.max(0, s.laserOffPending - 1) })),
 
     setModel: (patch) => set((s) => ({ model: { ...s.model, ...patch } })),
+    setPlan: (patch) => set((s) => ({ plan: { ...s.plan, ...patch } })),
     setMode: (mode) => set({ mode }),
     setSelection: (selection, basis) =>
       set(basis === undefined ? { selection } : { selection, selectionBasis: basis }),
