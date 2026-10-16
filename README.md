@@ -38,9 +38,10 @@
 # APP
 cd app
 npm ci              # 按 package-lock.json 安装依赖
-npm run dev         # 开发服务器
+npm run dev         # 开发服务器，连接本机的开发环境（app/.env.development）
 npm test            # 单元测试
 npm run build       # 类型检查并构建
+SPATIALVIEW_CONTRACT_ROSBRIDGE=ws://localhost:9090 npm run test:contract   # 接口约定测试，需要开发环境
 
 # Python 工具（在仓库根目录），用法见 tools/README.md
 uv sync             # 按 uv.lock 安装依赖

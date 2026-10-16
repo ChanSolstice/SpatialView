@@ -457,7 +457,7 @@ class Checker:
             self.report.error(
                 "ESTOP", f"中断原因应为 ROBOT_ESTOP，实际为 {state['last_result']['code']}"
             )
-        self._reset()
+        self._reset("清洗中急停")
 
     def check_estop(self) -> None:
         state = self.get_state()
@@ -472,13 +472,13 @@ class Checker:
             lambda s: s["robot_state"] == "ESTOP" and s["software_estop"], 2.0, "显示软件急停"
         )
         if state is not None:
-            self._reset()
+            self._reset("空闲时急停")
 
-    def _reset(self) -> None:
+    def _reset(self, case: str) -> None:
         if self.command("reset_estop", "ResetEstop", {}, ("OK",)) is None:
             return
         state = self.wait_for(lambda s: not s["software_estop"], 2.0, "看到软件急停复位")
         if state is not None:
             self.report.info(
-                "ESTOP", f"急停、锁存和复位正常，复位后机械臂为 {state['robot_state']}"
+                "ESTOP", f"{case}：急停、锁存和复位正常，复位后机械臂为 {state['robot_state']}"
             )

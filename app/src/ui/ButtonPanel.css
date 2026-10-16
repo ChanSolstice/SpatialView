@@ -1,0 +1,129 @@
+/* 按钮栏（前端UI设计 4.2）：宽 300，按钮 260 × 64，间距 10 */
+.panel {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 10px;
+  width: 300px;
+  padding: 16px 20px;
+  border-left: 1px solid var(--divider);
+  background: var(--surface);
+}
+
+.panel-divider {
+  flex: none;
+  height: 1px;
+  background: var(--divider);
+}
+
+.btn {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 64px;
+  padding: 0 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 600;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.btn .ic {
+  width: 26px;
+  height: 26px;
+}
+
+.btn .spinner {
+  width: 24px;
+  height: 24px;
+  border-color: #d3d9e0;
+  border-top-color: var(--text-2);
+}
+
+.btn.is-primary {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: var(--surface);
+  box-shadow: 0 2px 0 var(--primary-press);
+}
+
+.btn.is-active {
+  border-color: #9dbdf5;
+  background: var(--primary-tint);
+  color: var(--run-fg);
+}
+
+/* "关闭激光"：叠放在对话框遮罩之上（需求 5.3 规则 2） */
+.btn.is-warn {
+  position: relative;
+  z-index: var(--z-safety);
+  border-color: #f2a766;
+  background: #fff6ee;
+  color: var(--laser-fg);
+}
+
+.btn.is-progress {
+  border-color: var(--dis-bd);
+  background: var(--dis-bg);
+  color: var(--text-2);
+}
+
+.btn.is-disabled {
+  border-color: var(--dis-bd);
+  background: var(--dis-bg);
+  color: var(--dis-fg);
+  box-shadow: none;
+}
+
+/* 急停区：带白色衬底，叠放在所有遮罩之上 */
+.estop-area {
+  position: relative;
+  z-index: var(--z-safety);
+  margin: auto -10px -6px;
+  padding: 10px 10px 6px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.estop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  width: 100%;
+  height: 100px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--danger);
+  color: var(--surface);
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  box-shadow:
+    0 4px 0 var(--danger-dark),
+    0 10px 20px rgba(217, 48, 37, 0.28);
+}
+
+.estop:active {
+  box-shadow: 0 1px 0 var(--danger-dark);
+  transform: translateY(3px);
+}
+
+.estop .ic {
+  width: 40px;
+  height: 40px;
+  stroke-width: 2.2;
+}
+
+.estop-caption {
+  margin-top: 10px;
+  color: var(--text-3);
+  font-size: 14px;
+  text-align: center;
+}

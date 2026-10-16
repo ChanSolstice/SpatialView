@@ -1,0 +1,14 @@
+/* 主界面布局（前端UI设计第 2 节）：顶部 Status Bar，左侧三维区，右侧按钮栏。更大的屏幕只加宽三维区 */
+.app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--app-bg);
+}
+
+.app-main {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}

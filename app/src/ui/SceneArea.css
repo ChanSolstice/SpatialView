@@ -1,0 +1,80 @@
+/* 三维区（前端UI设计第 2、5 节）：背景为自上而下的浅灰渐变 */
+.scene {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  background: linear-gradient(180deg, #f4f6f9 0%, #dfe5eb 100%);
+}
+
+.scene-center {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.scene-empty {
+  color: var(--text-2);
+  text-align: center;
+}
+
+.scene-empty .ic {
+  width: 64px;
+  height: 64px;
+  color: var(--off-dot);
+  stroke-width: 1.5;
+}
+
+.scene-empty-title {
+  margin-top: 14px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.scene-empty-hint {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 16px;
+}
+
+.progress-card {
+  width: 340px;
+  padding: 22px 26px;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 30px rgba(20, 30, 45, 0.14);
+}
+
+.progress-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.progress-percent {
+  margin-left: auto;
+  color: var(--primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.progress-bar {
+  height: 8px;
+  margin-top: 16px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e3e8ee;
+}
+
+.progress-bar > i {
+  display: block;
+  height: 100%;
+  border-radius: 4px;
+  background: var(--primary);
+}

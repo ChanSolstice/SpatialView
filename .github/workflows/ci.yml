@@ -60,12 +60,19 @@ jobs:
       - run: scripts/mock-selftest.sh --inside
 
   dev-env:
-    name: 开发环境与接口检查
+    name: 开发环境、接口检查与接口约定测试
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v10
         with:
           version: '0.12.21'
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: app/.nvmrc
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci
+        working-directory: app
       - run: uv sync --locked
       - run: scripts/dev-env-check.sh

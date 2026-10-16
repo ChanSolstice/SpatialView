@@ -115,6 +115,22 @@ export function isCompatibleVersion(version: string): boolean {
   return /^\d+\.\d+$/.test(version) && major(version) === major(INTERFACE_VERSION)
 }
 
+/**
+ * 状态中 APP 不认识的设备状态和阶段取值，写作"字段=取值"。按钮可用性依赖这几个字段，
+ * 有不认识的取值时按接口不匹配处理（架构设计 4.2）。
+ */
+export function unknownValues(state: SystemState): string[] {
+  const checks: [string, readonly string[], string][] = [
+    ['robot_state', ROBOT_STATES, state.robot_state],
+    ['camera_state', CAMERA_STATES, state.camera_state],
+    ['laser_state', LASER_STATES, state.laser_state],
+    ['phase', PHASES, state.phase],
+  ]
+  return checks
+    .filter(([, values, value]) => !isOneOf(values, value))
+    .map(([field, , value]) => `${field}=${value}`)
+}
+
 export const SYSTEM_STATE_TOPIC = {
   name: '/spatialview/system_state',
   type: 'spatialview_msgs/msg/SystemState',
