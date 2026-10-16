@@ -8,7 +8,7 @@
 docker compose -f deploy/docker-compose.dev.yml up --build -d
 ```
 
-APP 的配置（需求文档 10.2）：`rosbridge_url` 为 `ws://<本机 IP>:9090`，`http_base_url` 为 `http://<本机 IP>:8080`。
+APP 的配置（需求文档 10.2）：`rosbridge_url` 为 `ws://<本机 IP>:9090`，`http_base_url` 为 `http://<本机 IP>:8080`。在本机运行 APP 的开发服务器（`npm run dev`）时，`app/.env.development` 已指向 `localhost`；从平板或其他电脑访问时，在 `app/.env.development.local` 中改为本机 IP。
 
 | 服务 | 内容 |
 | --- | --- |
@@ -44,7 +44,8 @@ $DC exec mock /entrypoint.sh ros2 service call /spatialview_mock/inject \
 
 ```bash
 uv run python -m tools.interface_check --allow-motion --allow-laser --allow-estop   # 对正在运行的开发环境
-scripts/dev-env-check.sh            # 用独立的项目名和端口启动一套环境，运行全部用例后关闭（CI 使用）
+(cd app && SPATIALVIEW_CONTRACT_ROSBRIDGE=ws://localhost:9090 npm run test:contract)  # APP 的接口约定测试
+scripts/dev-env-check.sh            # 用独立的项目名和端口启动一套环境，运行以上两项后关闭（CI 使用）
 ```
 
 当前用户没有 Docker 权限、或没有 compose 插件时，用 `COMPOSE` 指定命令，例如 `COMPOSE="sudo docker-compose" scripts/dev-env-check.sh`。
