@@ -10,7 +10,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 DOCKER=${DOCKER:-docker}
 IMAGE=${ROS_IMAGE:-ros:humble}
-TTY_FLAGS=()
+# 总是保留标准输入，可以用 scripts/ros.sh bash -s < 脚本 执行；只有在终端中才分配 TTY
+TTY_FLAGS=(-i)
 if [ -t 0 ] && [ -t 1 ]; then TTY_FLAGS=(-it); fi
 # shellcheck disable=SC2086
 exec $DOCKER run --rm "${TTY_FLAGS[@]}" -u "$(id -u):$(id -g)" -e HOME=/tmp \

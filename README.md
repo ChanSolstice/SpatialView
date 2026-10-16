@@ -49,6 +49,10 @@ uv run ruff check . # 代码检查
 uv run python -m tools.sample_data --size large   # 生成样例到 samples/large
 uv run python -m tools.validate --model 模型.glb --plan 规划.json
 
+# 开发用服务端环境：rosbridge、mock、nginx，用法见 deploy/README.md
+docker compose -f deploy/docker-compose.dev.yml up --build -d
+uv run python -m tools.interface_check     # 接口检查，用法见 tools/README.md
+
 # ROS 2 包：在 ros:humble 容器中执行（需要 Docker）
 scripts/ros.sh colcon build
 scripts/ros.sh ros2 interface show spatialview_msgs/msg/SystemState

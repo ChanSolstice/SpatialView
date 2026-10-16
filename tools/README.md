@@ -34,4 +34,33 @@ uv run python -m tools.validate --model 模型.glb --plan 规划.json --urdf 机
 
 ## 接口检查 `interface_check`
 
-经 rosbridge 和 HTTP 检查服务端是否符合接口文档（阶段 5）。
+经 rosbridge 和 HTTP 检查服务端是否符合接口文档（接口文档 15.1）。服务端团队在联调前用它自测，接口约定从 `ros2_ws/src/spatialview_msgs` 的 `.msg` 读取。
+
+```bash
+uv run python -m tools.interface_check --rosbridge ws://<服务端主机>:9090 --http http://<服务端主机>:8080
+```
+
+默认用例不会让机械臂运动，也不会开启激光：
+
+- GetSystemState 和 SystemState 的字段、类型和取值，以及字段之间的规则，例如没有模型时 `model_url` 为空、`software_estop` 为 true 时机械臂为急停
+- 发布频率（每 500 毫秒一次）、seq 每次加 1、观察期间 `session_id` 不变
+- 按当前阶段选出必然被拒绝的指令，检查状态码、500 毫秒时限，以及拒绝后阶段不变
+- 当前的模型和规划文件：跨域响应头、JSON 的 gzip，内容用 `validate` 检查
+
+下面的用例需要显式开启，并由现场人员看护：
+
+| 参数 | 用例 |
+| --- | --- |
+| `--allow-motion` | 扫描 → 重建 → 规划 → 开始 → 暂停 → 继续 → 停止，检查各阶段、结果和导出的文件。机械臂会运动 |
+| `--allow-laser` | 开启、关闭激光；联锁不满足时报告服务端给出的原因。激光会开启 |
+| `--allow-estop` | 调用机械臂急停 Service，检查急停和软件急停锁存，再复位；与 `--allow-motion` 同时给出时在执行中急停 |
+
+| 其他参数 | 说明 |
+| --- | --- |
+| `--estop-service` | 机械臂急停 Service 的名称，默认为暂定名 `/robot_driver/emergency_stop` |
+| `--urdf`、`--tcp-link` | 检查规划文件的关节名，并按正运动学核对工具末端是否沿 TCP 路径 |
+| `--wait` | 等待扫描、规划、停止完成的最长时间，默认 120 秒 |
+| `--connect-timeout` | 连接失败或服务端尚未就绪时重试的时长 |
+| `--json` | 以 JSON 输出结果 |
+
+有错误时退出码为 1。对开发环境运行全部用例：`scripts/dev-env-check.sh`（见 `deploy/README.md`）。

@@ -24,6 +24,7 @@ class Issue:
 @dataclass
 class Report:
     subject: str
+    verb: str = "校验"
     issues: list[Issue] = field(default_factory=list)
     _counts: Counter = field(default_factory=Counter, repr=False)
 
@@ -59,7 +60,7 @@ class Report:
         ]
 
     def format(self) -> str:
-        lines = [f"校验 {self.subject}"]
+        lines = [f"{self.verb} {self.subject}"]
         lines += [f"  {issue.format()}" for issue in self.issues]
         for level, code, more in self._omitted():
             lines.append(f"  [{LEVEL_TEXT[level]}] {code} 另有 {more} 处")

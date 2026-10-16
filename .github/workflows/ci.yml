@@ -58,3 +58,14 @@ jobs:
           python3 -c "from spatialview_msgs.msg import SystemState; assert SystemState.INTERFACE_VERSION == '1.0'"
       - run: python3 -m tools.sample_data --size small
       - run: scripts/mock-selftest.sh --inside
+
+  dev-env:
+    name: 开发环境与接口检查
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: '0.12.21'
+      - run: uv sync --locked
+      - run: scripts/dev-env-check.sh

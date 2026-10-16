@@ -14,6 +14,7 @@ from pathlib import Path
 
 import rclpy
 from builtin_interfaces.msg import Time
+from rcl_interfaces.msg import ParameterDescriptor
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import ExternalShutdownException, MultiThreadedExecutor
 from rclpy.node import Node
@@ -93,11 +94,11 @@ class MockServer(Node):
         sample_dir = Path(param("sample_dir", "samples/small").value)
         files_dir = Path(param("files_dir", "/var/lib/spatialview/files").value)
         config = SimConfig(
-            scan_seconds=float(param("scan_seconds", 10.0).value),
-            reconstruct_seconds=float(param("reconstruct_seconds", 5.0).value),
-            plan_seconds=float(param("plan_seconds", 5.0).value),
-            stop_seconds=float(param("stop_seconds", 1.0).value),
-            speed=float(param("speed", 1.0).value),
+            scan_seconds=self._number("scan_seconds", 10.0),
+            reconstruct_seconds=self._number("reconstruct_seconds", 5.0),
+            plan_seconds=self._number("plan_seconds", 5.0),
+            stop_seconds=self._number("stop_seconds", 1.0),
+            speed=self._number("speed", 1.0),
         )
 
         self.lock = threading.Lock()
@@ -147,6 +148,14 @@ class MockServer(Node):
         self.get_logger().info(
             f"mock 服务端已启动：会话 {self.core.session_id}，样例 {sample_dir}，文件目录 {files_dir}"
         )
+
+    def _number(self, name: str, default: float) -> float:
+        """数值参数：命令行写成 5 时 ROS 按整数解析，允许整数和小数两种类型。"""
+        descriptor = ParameterDescriptor(dynamic_typing=True)
+        value = self.declare_parameter(name, default, descriptor).value
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+            raise ValueError(f"参数 {name} 应为正数，实际为 {value!r}")
+        return float(value)
 
     # ---------------------------------------------------------------- MockCore 的副作用
 
