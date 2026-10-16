@@ -6,6 +6,7 @@ import { lazy, Suspense } from 'react'
 import { PROGRESS_TEXT, progressPercent, sceneContent } from '../domain/phase.ts'
 import type { Phase } from '../ros/contract.ts'
 import { Icon } from './Icon.tsx'
+import { AnimationTag, PlayBar } from './PlayBar.tsx'
 import { useApp, useRuntime } from './runtimeContext.ts'
 import { ToastHost } from './ToastHost.tsx'
 import './SceneArea.css'
@@ -109,8 +110,10 @@ export function SceneArea() {
       <Center />
       <div className="scene-top">
         <SelectionToolbar />
+        <AnimationTag />
         <ToastHost />
       </div>
+      <PlayBar />
     </section>
   )
 }

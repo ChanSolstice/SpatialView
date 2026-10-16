@@ -49,6 +49,15 @@ type WithoutId<T> = T extends unknown ? Omit<T, 'id'> : never
 /** 加入队列时由 store 分配 id。 */
 export type DialogInput = WithoutId<Dialog>
 
+/** 轨迹动画的播放状态（需求 6.6），纯本地，不向服务端发送任何指令。 */
+export interface AnimationState {
+  /** 动画时钟，与规划文件的 t 对齐，秒 */
+  time: number
+  playing: boolean
+  /** 倍速，取自配置的档位 */
+  speed: number
+}
+
 export interface Toast {
   id: number
   tone: 'error' | 'success'
@@ -79,6 +88,7 @@ export interface AppState {
   selectionBasis: string | null
   /** 每次加 1，三维场景恢复默认视角（需求 6.2）。 */
   viewResets: number
+  animation: AnimationState
   dialogs: Dialog[]
   toast: Toast | null
 }
@@ -106,6 +116,9 @@ export interface AppActions {
   /** 选面模式中点选表面：未选中则加入，已选中则移除；不可选的表面不响应。 */
   toggleSurface(id: string): void
   resetView(): void
+  /** 进入轨迹动画：从头开始播放；倍速沿用上次选择的档位，不在档位中时取第一档（需求 6.6）。 */
+  enterAnimate(speeds: readonly number[]): void
+  setAnimation(patch: Partial<AnimationState>): void
   pushDialog(dialog: DialogInput): void
   closeDialog(id: number): void
   showToast(toast: Omit<Toast, 'id'>): void
@@ -128,6 +141,7 @@ export const INITIAL_STATE: AppState = {
   selection: new Set(),
   selectionBasis: null,
   viewResets: 0,
+  animation: { time: 0, playing: false, speed: 1 },
   dialogs: [],
   toast: null,
 }
@@ -179,6 +193,16 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
         return { selection }
       }),
     resetView: () => set((s) => ({ viewResets: s.viewResets + 1 })),
+    enterAnimate: (speeds) =>
+      set((s) => ({
+        mode: 'animate',
+        animation: {
+          time: 0,
+          playing: true,
+          speed: speeds.includes(s.animation.speed) ? s.animation.speed : (speeds[0] ?? 1),
+        },
+      })),
+    setAnimation: (patch) => set((s) => ({ animation: { ...s.animation, ...patch } })),
 
     pushDialog: (dialog) =>
       set((s) => {

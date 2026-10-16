@@ -1,0 +1,138 @@
+/* 轨迹动画标签（前端UI设计 4.3）：琥珀色胶囊，动画期间常驻三维区顶部 */
+.anim-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 18px;
+  border: 1.5px solid var(--warn-bd);
+  border-radius: 20px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(122, 75, 0, 0.12);
+}
+
+.anim-tag .ic {
+  width: 20px;
+  height: 20px;
+}
+
+/* 播放条：三维区底部，左右距边 20，高 76 的白色浮动条 */
+.playbar {
+  position: absolute;
+  right: 20px;
+  bottom: 20px;
+  left: 20px;
+  z-index: var(--z-overlay);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 76px;
+  padding: 0 16px;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(20, 30, 45, 0.16);
+}
+
+.playbar-button {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border: 1.5px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.playbar-play {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #ffffff;
+}
+
+.playbar-button .ic {
+  width: 22px;
+  height: 22px;
+}
+
+/* 进度条：可见部分高 8，触控范围高 44；拖动手柄直径 28 */
+.playbar-track {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  height: 44px;
+  margin: 0 6px;
+  touch-action: none;
+}
+
+.playbar-rail {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: #e3e8ee;
+}
+
+.playbar-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 4px;
+  background: var(--ok-dot);
+}
+
+.playbar-thumb {
+  position: absolute;
+  top: 50%;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border: 2.5px solid var(--ok-dot);
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.playbar-time {
+  min-width: 140px;
+  color: var(--text-2);
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+/* 倍速分段按钮 */
+.playbar-speeds {
+  display: flex;
+  overflow: hidden;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+}
+
+.playbar-speeds button {
+  min-width: 56px;
+  height: 44px;
+  border: none;
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.playbar-speeds button + button {
+  border-left: 1.5px solid var(--border);
+}
+
+.playbar-speeds button.is-on {
+  background: var(--primary-tint);
+  color: var(--run-fg);
+}

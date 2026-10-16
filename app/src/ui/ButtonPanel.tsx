@@ -43,7 +43,7 @@ const GROUPS: PanelButton[][] = [
 ]
 
 export function ButtonPanel() {
-  const { store, commands } = useRuntime()
+  const { store, commands, config } = useRuntime()
   const { buttons } = useApp(selectAvailability)
 
   const press = (view: ButtonView) => {
@@ -53,7 +53,7 @@ export function ButtonPanel() {
       case 'enterSelect':
         return s.enterSelect()
       case 'enterAnimate':
-        return s.setMode('animate')
+        return s.enterAnimate(config.config.animation.speeds)
       case 'laserOff':
         return void commands.laserOff()
       default:

@@ -1,6 +1,6 @@
 /**
  * TCP 路径（需求 6.5；前端UI设计第 5 节）：规划就绪、轨迹动画和执行期间显示，起点、终点用标签标出；
- * 执行期间按 exec_time 给已走过的工艺段着色。
+ * 轨迹动画中按动画时钟、执行期间按 exec_time 给已走过的工艺段着色。
  */
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
@@ -40,8 +40,14 @@ function LabelLayer() {
 export function TcpPath() {
   const plan = useApp((s) => s.plan.data)
   const path = useApp((s) => sceneContent(s.server?.phase ?? null, s.mode).path)
-  // 执行期间的进度取实际已执行时间（需求 6.5）
-  const progress = useApp((s) => (path === 'execution' ? (s.server?.exec_time ?? 0) : null))
+  // 轨迹动画中的进度取动画时钟，执行期间取实际已执行时间（需求 6.5、6.6）
+  const progress = useApp((s) =>
+    path === 'animation'
+      ? s.animation.time
+      : path === 'execution'
+        ? (s.server?.exec_time ?? 0)
+        : null,
+  )
   const invalidate = useThree((s) => s.invalidate)
   const labels = useMemo(() => createPathLabels(), [])
   const visible = plan !== null && path !== 'none'
