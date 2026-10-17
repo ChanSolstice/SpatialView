@@ -185,3 +185,8 @@
   background: var(--fault-bg);
   color: var(--fault-fg);
 }
+
+/* 面板展开时加一圈浅色外框（前端UI设计 4.1） */
+.sb-alarm.is-open {
+  box-shadow: 0 0 0 4px rgba(31, 111, 235, 0.14);
+}

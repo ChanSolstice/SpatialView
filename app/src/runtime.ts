@@ -28,11 +28,15 @@ export interface Runtime {
   dispose(): void
 }
 
-/** 返回键（架构设计 5.8）：有弹窗时关闭弹窗；处于选面或轨迹动画模式时退出模式；其他情况不做任何事。 */
+/**
+ * 返回键（架构设计 5.8）：有弹窗时关闭弹窗；告警面板展开时收起；处于选面或轨迹动画模式时退出模式；
+ * 其他情况不做任何事。
+ */
 export function handleBack(store: AppStore): void {
   const s = store.getState()
   const [dialog] = s.dialogs
   if (dialog) s.closeDialog(dialog.id)
+  else if (s.alarmPanelOpen) s.setAlarmPanel(false)
   else if (s.mode !== 'browse') s.setMode('browse')
 }
 

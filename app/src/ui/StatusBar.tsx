@@ -17,10 +17,11 @@ function Pill({ view, className }: { view: StatusView; className?: string }) {
 }
 
 export function StatusBar() {
-  const { connection } = useRuntime()
+  const { connection, store } = useRuntime()
   const state = useApp(liveState)
   const status = useApp((s) => s.conn.status)
   const alarms = useApp(selectAlarmSummary)
+  const panelOpen = useApp((s) => s.alarmPanelOpen)
   const phase = phaseView(state)
 
   return (
@@ -60,12 +61,20 @@ export function StatusBar() {
       <div className="sb-spacer" />
       <button
         type="button"
-        className={alarms.tone === 'none' ? 'sb-alarm' : `sb-alarm ${alarms.tone}`}
+        className={[
+          'sb-alarm',
+          alarms.tone === 'none' ? '' : alarms.tone,
+          panelOpen ? 'is-open' : '',
+        ]
+          .filter(Boolean)
+          .join(' ')}
         data-testid="sb-alarm"
+        aria-expanded={panelOpen}
+        onClick={() => store.getState().setAlarmPanel(!panelOpen)}
       >
         <Icon name="bell" />
         <span>{alarms.text}</span>
-        <Icon name="down" />
+        <Icon name={panelOpen ? 'up' : 'down'} />
       </button>
     </header>
   )
