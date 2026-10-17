@@ -8,9 +8,6 @@ import defaultsJson from './config.json'
 import { OVERRIDE_KEY } from './load.ts'
 import { configSchema, describeIssues } from './schema.ts'
 
-/** 编译开关：关闭时工程入口和长按逻辑都不进入打包产物。 */
-export const ENGINEERING_ENABLED = import.meta.env.VITE_ENABLE_ENGINEERING === 'true'
-
 async function sha256(text: string): Promise<string> {
   const bytes = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text))
   return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, '0')).join('')

@@ -1,4 +1,5 @@
 /** Status Bar（需求 5.2；前端UI设计 4.1）。未连接时机械臂、作业、激光、相机都显示"未知"。 */
+import { lazy, Suspense } from 'react'
 import {
   cameraView,
   laserView,
@@ -12,6 +13,13 @@ import { Icon } from './Icon.tsx'
 import { useApp, useRuntime } from './runtimeContext.ts'
 import './StatusBar.css'
 
+// 工程入口只在编译开关打开时打包（需求 10.3）。条件直接写 import.meta.env，打包时替换为常量，
+// 关闭时连同动态加载的模块一起删除；从别的模块导入的常量不会这样删除
+const EngineeringEntry =
+  import.meta.env.VITE_ENABLE_ENGINEERING === 'true'
+    ? lazy(() => import('./engineering/EngineeringEntry.tsx'))
+    : null
+
 function Pill({ view, className }: { view: StatusView; className?: string }) {
   return <span className={`pill ${view.tone}${className ? ` ${className}` : ''}`}>{view.text}</span>
 }
@@ -23,17 +31,26 @@ export function StatusBar() {
   const alarms = useApp(selectAlarmSummary)
   const panelOpen = useApp((s) => s.alarmPanelOpen)
   const phase = phaseView(state)
+  const brand = (
+    <div className="sb-brand">
+      <span className="sb-mark">
+        <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M4 17l5-6 4 3 7-8" />
+        </svg>
+      </span>
+      SpatialView
+    </div>
+  )
 
   return (
     <header className="sb">
-      <div className="sb-brand">
-        <span className="sb-mark">
-          <svg className="ic" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M4 17l5-6 4 3 7-8" />
-          </svg>
-        </span>
-        SpatialView
-      </div>
+      {EngineeringEntry ? (
+        <Suspense fallback={brand}>
+          <EngineeringEntry>{brand}</EngineeringEntry>
+        </Suspense>
+      ) : (
+        brand
+      )}
       <div className="sb-item" data-testid="sb-robot">
         <span className="sb-label">机械臂</span>
         <Pill view={robotView(state)} className="is-robot" />
