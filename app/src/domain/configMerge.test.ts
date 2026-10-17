@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeConfig } from './configMerge.ts'
+import { diffConfig, mergeConfig } from './configMerge.ts'
 
 const defaults = {
   config_version: 2,
@@ -52,5 +52,40 @@ describe('mergeConfig（需求 10.1）', () => {
     const before = JSON.stringify(defaults)
     mergeConfig(defaults, { server: { rosbridge_url: 'ws://x:1' } })
     expect(JSON.stringify(defaults)).toBe(before)
+  })
+})
+
+describe('diffConfig（需求 10.1：只保存改过的字段）', () => {
+  const base = {
+    config_version: 3,
+    server: { rosbridge_url: 'ws://a:9090', http_base_url: 'http://a:8080' },
+    animation: { speeds: [1, 5, 20] },
+    scene: { grid_size_m: 4 },
+  }
+
+  it('只保留与默认配置不同的字段，数组整体保存，记录默认配置版本', () => {
+    const edited = {
+      ...base,
+      server: { ...base.server, rosbridge_url: 'ws://b:9090' },
+      animation: { speeds: [1, 10] },
+    }
+    expect(diffConfig(base, edited)).toEqual({
+      server: { rosbridge_url: 'ws://b:9090' },
+      animation: { speeds: [1, 10] },
+      config_version: 3,
+    })
+  })
+
+  it('没有改动时只有版本；编辑内容中的 config_version 不影响', () => {
+    expect(diffConfig(base, { ...base, config_version: 99 })).toEqual({ config_version: 3 })
+  })
+
+  it('合并回默认配置后与编辑后的配置一致', () => {
+    const edited = {
+      ...base,
+      scene: { grid_size_m: 6 },
+      server: { ...base.server, http_base_url: 'http://c' },
+    }
+    expect(mergeConfig(base, diffConfig(base, edited))).toEqual(edited)
   })
 })
