@@ -175,3 +175,42 @@
   width: 20px;
   height: 20px;
 }
+
+/* 断线遮罩（前端UI设计 6.11）：盖住三维区的全部浮层，在告警面板、对话框和急停区之下 */
+.scene-mask {
+  position: absolute;
+  inset: 0;
+  z-index: var(--z-mask);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(224, 229, 235, 0.78);
+  backdrop-filter: blur(2px) grayscale(0.5);
+}
+
+.scene-mask-card {
+  padding: 26px 36px;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(20, 30, 45, 0.14);
+  text-align: center;
+}
+
+.scene-mask-card .ic {
+  width: 44px;
+  height: 44px;
+  color: var(--fault-dot);
+}
+
+.scene-mask-title {
+  margin-top: 10px;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.scene-mask-hint {
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 16px;
+}
