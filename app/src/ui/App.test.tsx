@@ -370,6 +370,87 @@ describe('轨迹动画（需求 6.6）', () => {
   })
 })
 
+describe('机械臂提示与复位急停（需求 5.6；需求 12.4 场景 6）', () => {
+  const notice = () => screen.queryByTestId('robot-notice')
+  const resetButton = () =>
+    within(notice() as HTMLElement).queryByRole('button', { name: '复位急停' })
+
+  it('依次为未启动、设备急停、软件急停：只有软件急停有复位，确认后发送复位，提示消失', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY', { robot_state: 'DISABLED' }))
+    expect(notice()?.textContent).toContain('机械臂未启动')
+    expect(notice()?.textContent).toContain('请在示教器上启动机械臂（上电并松开刹车）。')
+    expect(resetButton()).toBeNull()
+
+    await publish(socket, stateForPhase('PLAN_READY', { robot_state: 'ESTOP' }))
+    expect(notice()?.textContent).toContain('设备急停已触发')
+    expect(resetButton()).toBeNull()
+
+    await publish(
+      socket,
+      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', software_estop: true }),
+    )
+    expect(notice()?.textContent).toContain('软件急停已触发')
+    expect(resetButton()?.hasAttribute('disabled')).toBe(false)
+
+    fireEvent.click(resetButton() as HTMLElement)
+    const dialog = screen.getByRole('dialog')
+    expect(dialog.textContent).toContain('复位后机械臂可以重新接受运动指令，但不会自动运动')
+    fireEvent.click(within(dialog).getByRole('button', { name: '复位急停' }))
+    expect(socket.calls.at(-1)?.name).toBe(SERVICES.resetEstop.name)
+    expect(resetButton()?.hasAttribute('disabled')).toBe(true)
+    await reply(socket, SERVICES.resetEstop.name, 'OK', stateForPhase('PLAN_READY'))
+    expect(notice()).toBeNull()
+  })
+
+  it('复位后设备急停仍未解除时，改为显示设备急停的提示', async () => {
+    const socket = await connect(
+      stateForPhase('MODEL_READY', { robot_state: 'ESTOP', software_estop: true }),
+    )
+    fireEvent.click(resetButton() as HTMLElement)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '复位急停' }))
+    await reply(
+      socket,
+      SERVICES.resetEstop.name,
+      'OK',
+      stateForPhase('MODEL_READY', { robot_state: 'ESTOP' }),
+    )
+    expect(notice()?.textContent).toContain('设备急停已触发')
+  })
+
+  it('急停引起的中断尚未完成时不能复位；选面模式中可以复位', async () => {
+    const socket = await connect(
+      stateForPhase('STOPPING', { robot_state: 'ESTOP', software_estop: true }),
+    )
+    expect(resetButton()?.hasAttribute('disabled')).toBe(true)
+    await publish(
+      socket,
+      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', software_estop: true }),
+    )
+    fireEvent.click(button('select'))
+    expect(runtime.store.getState().mode).toBe('select')
+    expect(resetButton()?.hasAttribute('disabled')).toBe(false)
+  })
+
+  it('确认框打开期间复位变为不可用时自动关闭，不发送', async () => {
+    const socket = await connect(
+      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', software_estop: true }),
+    )
+    fireEvent.click(resetButton() as HTMLElement)
+    expect(screen.getByRole('dialog')).toBeTruthy()
+    const calls = socket.calls.length
+    await publish(socket, stateForPhase('PLAN_READY'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(socket.calls.length).toBe(calls)
+  })
+
+  it('断线后机械臂状态未知，不显示提示', async () => {
+    await connect(stateForPhase('PLAN_READY', { robot_state: 'DISABLED' }))
+    expect(notice()).not.toBeNull()
+    act(() => runtime.store.getState().setConn({ status: 'reconnecting' }))
+    expect(notice()).toBeNull()
+  })
+})
+
 describe('返回键', () => {
   it('有弹窗时关闭弹窗，处于选面模式时退出模式', async () => {
     await connect(stateForPhase('PLAN_READY'))

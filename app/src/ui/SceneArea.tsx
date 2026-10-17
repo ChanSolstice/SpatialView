@@ -7,6 +7,7 @@ import { PROGRESS_TEXT, progressPercent, sceneContent } from '../domain/phase.ts
 import type { Phase } from '../ros/contract.ts'
 import { Icon } from './Icon.tsx'
 import { AnimationTag, PlayBar } from './PlayBar.tsx'
+import { RobotNotice } from './RobotNotice.tsx'
 import { useApp, useRuntime } from './runtimeContext.ts'
 import { ToastHost } from './ToastHost.tsx'
 import './SceneArea.css'
@@ -111,6 +112,7 @@ export function SceneArea() {
       <div className="scene-top">
         <SelectionToolbar />
         <AnimationTag />
+        <RobotNotice />
         <ToastHost />
       </div>
       <PlayBar />

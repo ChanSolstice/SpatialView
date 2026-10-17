@@ -1,0 +1,73 @@
+/*
+ * 机械臂提示（前端UI设计 4.8）：三维区顶部居中，宽 560，高 72；白底，左侧 6 像素色条，与短时提示同一风格。
+ * 急停为危险色，未启动为 off 的圆点色。
+ */
+.robot-notice {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 560px;
+  min-height: 72px;
+  padding: 12px 14px 12px 18px;
+  border: 1px solid #f2c3bf;
+  border-left: 6px solid var(--danger);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(20, 30, 45, 0.18);
+}
+
+.robot-notice.is-off {
+  border-color: var(--divider);
+  border-left-color: var(--off-dot);
+}
+
+.robot-notice > .ic {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  color: var(--danger);
+}
+
+.robot-notice.is-off > .ic {
+  color: var(--off-dot);
+}
+
+.robot-notice-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.robot-notice-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.robot-notice-detail {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 15px;
+}
+
+/* 复位急停：主操作样式，高 44，宽至少 120；不可用时为不可用样式 */
+.robot-notice-reset {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-width: 120px;
+  height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--primary);
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.robot-notice-reset:disabled {
+  border: 1.5px solid var(--dis-bd);
+  background: var(--dis-bg);
+  color: var(--dis-fg);
+}
