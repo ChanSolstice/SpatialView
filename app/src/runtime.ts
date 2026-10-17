@@ -12,6 +12,7 @@ import { ConnectionManager } from './ros/connection.ts'
 import { createStateSync } from './ros/stateSync.ts'
 import { connectRoslib, type Connect } from './ros/transport.ts'
 import { installListeners } from './store/listeners.ts'
+import { installLocalAlarms } from './store/localAlarms.ts'
 import { createAppStore, type AppStore } from './store/store.ts'
 
 export const REFRESH_TOAST = {
@@ -73,6 +74,7 @@ export async function startRuntime(
   const commands = createCommands(store, connection, sync, timing)
   const cleanups = [
     installListeners(store),
+    installLocalAlarms(store),
     installModelLoader(store, server.http_base_url, fetchFile),
     installPlanLoader(store, server.http_base_url, scene.path_arrow_spacing_m, loadPlan),
     installRobotLoader(store, robot, import.meta.env.BASE_URL, loadRobot),

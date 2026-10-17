@@ -4,6 +4,7 @@
  */
 import type { LoadedPlan } from '../assets/path.ts'
 import type { LoadedRobot } from '../assets/robot.ts'
+import { alarmItems, type AlarmItem } from '../domain/alarms.ts'
 import { availability, type Availability } from '../domain/availability.ts'
 import { alarmSummary, type AlarmSummary } from '../domain/phase.ts'
 import { isCompatibleVersion, unknownValues, type SystemState } from '../ros/contract.ts'
@@ -119,8 +120,14 @@ export const selectAvailability = memo(
     }),
 )
 
-/** Status Bar 的告警按钮。断线期间保留断线前的服务端告警（需求 7.4）；本地告警在阶段 10 加入。 */
+/** 告警面板的条目：断线期间保留断线前的服务端告警（需求 7.4），加上本地告警。 */
+export const selectAlarmItems = memo(
+  (s) => [s.server, s.localAlarms] as const,
+  (server, local): AlarmItem[] => alarmItems(server?.alarms ?? [], local),
+)
+
+/** Status Bar 的告警按钮：数量和最高级别包含本地告警（需求 9.2）。 */
 export const selectAlarmSummary = memo(
-  (s) => [s.server] as const,
-  (server): AlarmSummary => alarmSummary(server?.alarms.map((alarm) => alarm.level) ?? []),
+  (s) => [selectAlarmItems(s)] as const,
+  (items): AlarmSummary => alarmSummary(items.map((item) => item.level)),
 )
