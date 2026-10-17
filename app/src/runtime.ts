@@ -12,6 +12,7 @@ import { ConnectionManager } from './ros/connection.ts'
 import { createStateSync } from './ros/stateSync.ts'
 import { connectRoslib, type Connect } from './ros/transport.ts'
 import { installListeners } from './store/listeners.ts'
+import { installLocalAlarms } from './store/localAlarms.ts'
 import { createAppStore, type AppStore } from './store/store.ts'
 
 export const REFRESH_TOAST = {
@@ -27,11 +28,15 @@ export interface Runtime {
   dispose(): void
 }
 
-/** 返回键（架构设计 5.8）：有弹窗时关闭弹窗；处于选面或轨迹动画模式时退出模式；其他情况不做任何事。 */
+/**
+ * 返回键（架构设计 5.8）：有弹窗时关闭弹窗；告警面板展开时收起；处于选面或轨迹动画模式时退出模式；
+ * 其他情况不做任何事。
+ */
 export function handleBack(store: AppStore): void {
   const s = store.getState()
   const [dialog] = s.dialogs
   if (dialog) s.closeDialog(dialog.id)
+  else if (s.alarmPanelOpen) s.setAlarmPanel(false)
   else if (s.mode !== 'browse') s.setMode('browse')
 }
 
@@ -73,6 +78,7 @@ export async function startRuntime(
   const commands = createCommands(store, connection, sync, timing)
   const cleanups = [
     installListeners(store),
+    installLocalAlarms(store),
     installModelLoader(store, server.http_base_url, fetchFile),
     installPlanLoader(store, server.http_base_url, scene.path_arrow_spacing_m, loadPlan),
     installRobotLoader(store, robot, import.meta.env.BASE_URL, loadRobot),

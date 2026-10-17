@@ -7,6 +7,7 @@ import { createStore, type StoreApi } from 'zustand/vanilla'
 import type { LoadedModel } from '../assets/model.ts'
 import type { LoadedPlan } from '../assets/path.ts'
 import type { LoadedRobot } from '../assets/robot.ts'
+import type { LocalAlarm } from '../domain/alarms.ts'
 import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
@@ -91,6 +92,9 @@ export interface AppState {
   animation: AnimationState
   dialogs: Dialog[]
   toast: Toast | null
+  /** APP 本地告警（需求 9.1），由 localAlarms.ts 维护 */
+  localAlarms: readonly LocalAlarm[]
+  alarmPanelOpen: boolean
 }
 
 export interface AppActions {
@@ -123,6 +127,8 @@ export interface AppActions {
   closeDialog(id: number): void
   showToast(toast: Omit<Toast, 'id'>): void
   clearToast(id: number): void
+  setLocalAlarms(alarms: readonly LocalAlarm[]): void
+  setAlarmPanel(open: boolean): void
 }
 
 export type AppStore = StoreApi<AppState & AppActions>
@@ -144,6 +150,8 @@ export const INITIAL_STATE: AppState = {
   animation: { time: 0, playing: false, speed: 1 },
   dialogs: [],
   toast: null,
+  localAlarms: [],
+  alarmPanelOpen: false,
 }
 
 export function createAppStore(initial: Partial<AppState> = {}): AppStore {
@@ -219,5 +227,7 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
     // 新提示替换旧提示，不堆叠（前端UI设计 4.5）
     showToast: (toast) => set({ toast: { ...toast, id: nextId++ } }),
     clearToast: (id) => set((s) => (s.toast?.id === id ? { toast: null } : {})),
+    setLocalAlarms: (localAlarms) => set({ localAlarms }),
+    setAlarmPanel: (alarmPanelOpen) => set({ alarmPanelOpen }),
   }))
 }

@@ -451,6 +451,116 @@ describe('机械臂提示与复位急停（需求 5.6；需求 12.4 场景 6）'
   })
 })
 
+describe('告警面板（需求 9.2；前端UI设计 4.6）', () => {
+  const panel = () => screen.queryByTestId('alarm-panel')
+  const alarm = (code: string, level: string, sec: number, detail = '') => ({
+    code,
+    level,
+    detail,
+    stamp: { sec, nanosec: 0 },
+  })
+  const withAlarms = stateForPhase('PLAN_READY', {
+    robot_state: 'FAULT',
+    alarms: [
+      alarm('ROBOT_FAULT', 'ERROR', 1_792_000_100, '第 3 轴驱动器过温'),
+      alarm('PLAN_FAILED', 'WARNING', 1_792_000_200),
+      alarm('VENDOR_X', 'ERROR', 1_792_000_000),
+    ],
+  })
+
+  it('点击告警按钮展开，按时间倒序列出：名称、级别标签、补充说明、告警码', async () => {
+    await connect(withAlarms)
+    expect(status('alarm')).toContain('3 个告警')
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    expect(screen.getByTestId('sb-alarm').getAttribute('aria-expanded')).toBe('true')
+    const items = [...(panel() as HTMLElement).querySelectorAll('.alarm')].map((e) => e.textContent)
+    expect(panel()?.textContent).toContain('告警（3）')
+    expect(items[0]).toContain('规划失败警告')
+    expect(items[1]).toContain('机械臂故障错误')
+    expect(items[1]).toContain('第 3 轴驱动器过温')
+    expect(items[1]).toContain('ROBOT_FAULT')
+    // 未知告警码显示为"设备告警"，照常显示告警码
+    expect(items[2]).toContain('设备告警')
+    expect(items[2]).toContain('VENDOR_X')
+    fireEvent.click(within(panel() as HTMLElement).getByRole('button', { name: '关闭' }))
+    expect(panel()).toBeNull()
+  })
+
+  it('点击面板外收起；面板打开时按急停，急停照常发送', async () => {
+    const socket = await connect(withAlarms)
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    fireEvent.pointerDown(screen.getByTestId('scene'))
+    expect(panel()).toBeNull()
+
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    fireEvent.pointerDown(button('estop'))
+    fireEvent.click(button('estop'))
+    expect(panel()).toBeNull()
+    expect(socket.calls.at(-1)?.name).toBe(ESTOP_SERVICE.name)
+  })
+
+  it('断线：保留断线前的服务端告警并标注，另加本地告警"网络连接断开"', async () => {
+    await connect(withAlarms)
+    act(() => runtime.store.getState().setConn({ status: 'reconnecting', socketOpen: false }))
+    expect(status('alarm')).toContain('4 个告警')
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    expect(panel()?.textContent).toContain('以下为断线前的告警')
+    expect(panel()?.textContent).toContain('网络连接断开')
+    expect(panel()?.textContent).toContain('APP_NETWORK_DOWN')
+  })
+
+  it('没有告警时显示"当前没有告警"；返回键收起面板', async () => {
+    await connect(stateForPhase('PLAN_READY'))
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    expect(panel()?.textContent).toContain('当前没有告警')
+    act(() => platform.back())
+    expect(panel()).toBeNull()
+  })
+})
+
+describe('断线遮罩（需求 7.4；前端UI设计 6.11）', () => {
+  const mask = () => screen.queryByTestId('disconnect-mask')
+
+  it('启动时还没有连接过，不加遮罩', () => {
+    expect(mask()).toBeNull()
+  })
+
+  it('断线后三维区加遮罩，重连中；刷新连接时为正在连接；连接后遮罩消失', async () => {
+    await connect(stateForPhase('PLAN_READY'))
+    expect(mask()).toBeNull()
+    act(() => runtime.store.getState().setConn({ status: 'reconnecting', socketOpen: false }))
+    expect(mask()?.textContent).toContain('连接断开，画面内容可能已过期')
+    expect(mask()?.textContent).toContain('正在重连…')
+    act(() => runtime.store.getState().setConn({ status: 'connecting' }))
+    expect(mask()?.textContent).toContain('正在连接…')
+    act(() => runtime.store.getState().setConn({ status: 'connected', socketOpen: true }))
+    expect(mask()).toBeNull()
+  })
+})
+
+describe('接口版本不匹配（需求 7.7；需求 12.4 场景 3）', () => {
+  it('本地告警；除急停和关闭激光外的指令按钮不可用；版本恢复一致后告警消失', async () => {
+    const socket = await connect(
+      stateForPhase('PLAN_READY', { interface_version: '2.0', laser_state: 'ON' }),
+    )
+    expect(status('alarm')).toContain('1 个告警')
+    for (const key of ['scan', 'select', 'plan', 'animate', 'main', 'stop']) {
+      expect(button(key).disabled, key).toBe(true)
+    }
+    expect(button('laser').textContent).toBe('关闭激光')
+    expect(button('laser').disabled).toBe(false)
+    expect(button('estop').disabled).toBe(false)
+    fireEvent.click(screen.getByTestId('sb-alarm'))
+    const panel = screen.getByTestId('alarm-panel')
+    expect(panel.textContent).toContain('接口版本不匹配')
+    expect(panel.textContent).toContain('服务端接口版本 2.0，APP 期望 1.0')
+
+    await publish(socket, stateForPhase('PLAN_READY'))
+    expect(status('alarm')).toContain('无告警')
+    expect(button('scan').disabled).toBe(false)
+  })
+})
+
 describe('返回键', () => {
   it('有弹窗时关闭弹窗，处于选面模式时退出模式', async () => {
     await connect(stateForPhase('PLAN_READY'))

@@ -1,4 +1,5 @@
 /** 主界面（需求 5.1；架构设计 5.8）。 */
+import { AlarmPanel } from './AlarmPanel.tsx'
 import { ButtonPanel } from './ButtonPanel.tsx'
 import { DialogHost } from './DialogHost.tsx'
 import { SceneArea } from './SceneArea.tsx'
@@ -13,6 +14,7 @@ export function App() {
         <SceneArea />
         <ButtonPanel />
       </div>
+      <AlarmPanel />
       <DialogHost />
     </div>
   )

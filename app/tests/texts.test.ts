@@ -1,8 +1,9 @@
 /**
  * 显示文字与文档一致：状态码文字（接口文档第 7 节的"APP 显示"列）、状态显示（需求 4、5.2）、
- * 结果提示框标题（需求 5.5）、机械臂提示（需求 5.6）。
+ * 结果提示框标题（需求 5.5）、机械臂提示（需求 5.6）、本地告警（需求 9.1）。
  */
 import { describe, expect, it } from 'vitest'
+import { LOCAL_ALARMS } from '../src/domain/alarms.ts'
 import {
   ALARM_CODE_TEXT,
   COMMAND_CODE_TEXT,
@@ -156,6 +157,16 @@ describe('需求 5.6 的机械臂提示', () => {
         text: notice.text,
         button: notice.reset ? '复位急停' : '—',
       })),
+    )
+  })
+})
+
+describe('需求 9.1 的本地告警', () => {
+  it('名称、告警码和级别与需求一致', () => {
+    const rows = table(requirements, '9.1', 1)
+    expect(rows.header).toEqual(['告警', 'code', 'level', '补充说明'])
+    expect(rows.rows.map(([name, key, level]) => [code(key ?? ''), name, level])).toEqual(
+      Object.entries(LOCAL_ALARMS).map(([key, alarm]) => [key, alarm.name, alarm.level]),
     )
   })
 })

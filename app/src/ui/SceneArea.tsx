@@ -66,6 +66,25 @@ function Center() {
   return null
 }
 
+/**
+ * 断线遮罩（需求 7.4；前端UI设计 6.11）：连接过服务端之后断线时，三维区保留最后的画面并加半透明遮罩。
+ * 急停区、告警面板和对话框在遮罩之上。
+ */
+function DisconnectMask() {
+  const status = useApp((s) => s.conn.status)
+  const everConnected = useApp((s) => s.server !== null)
+  if (status === 'connected' || !everConnected) return null
+  return (
+    <div className="scene-mask" data-testid="disconnect-mask">
+      <div className="scene-mask-card">
+        <Icon name="wifiOff" />
+        <div className="scene-mask-title">连接断开，画面内容可能已过期</div>
+        <div className="scene-mask-hint">{status === 'connecting' ? '正在连接…' : '正在重连…'}</div>
+      </div>
+    </div>
+  )
+}
+
 /** 选面工具条（需求 6.4）：已选 N 个表面 ｜ 清空选择 ｜ 退出选面。 */
 function SelectionToolbar() {
   const { store } = useRuntime()
@@ -116,6 +135,7 @@ export function SceneArea() {
         <ToastHost />
       </div>
       <PlayBar />
+      <DisconnectMask />
     </section>
   )
 }

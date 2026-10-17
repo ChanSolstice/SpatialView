@@ -1,0 +1,133 @@
+/* 告警面板（前端UI设计 4.6）：告警按钮下方靠右，宽 480，最多显示 6 条，超出时面板内滚动 */
+.alarms {
+  position: absolute;
+  top: 72px;
+  right: 12px;
+  z-index: var(--z-alarms);
+  display: flex;
+  flex-direction: column;
+  width: 480px;
+  overflow: hidden;
+  border: 1px solid var(--divider);
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: 0 18px 44px rgba(15, 25, 40, 0.24);
+}
+
+.alarms-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 8px 6px 20px;
+  border-bottom: 1px solid var(--divider);
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.alarms-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: none;
+  color: var(--text-3);
+}
+
+.alarms-note {
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--divider);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 14px;
+}
+
+/* 每条约 86 像素高，6 条之后在面板内滚动 */
+.alarms-list {
+  max-height: 516px;
+  overflow-y: auto;
+}
+
+.alarms-empty {
+  padding: 20px;
+  color: var(--text-3);
+  font-size: 15px;
+  text-align: center;
+}
+
+.alarm {
+  display: flex;
+  gap: 14px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.alarm:last-child {
+  border-bottom: 0;
+}
+
+.alarm-bar {
+  flex: none;
+  width: 6px;
+  border-radius: 3px;
+}
+
+.alarm-bar.error {
+  background: var(--fault-dot);
+}
+
+.alarm-bar.warning {
+  background: var(--pause-dot);
+}
+
+.alarm-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.alarm-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+/* 级别不只靠颜色表达：名称后跟"错误""警告"小标签 */
+.alarm-level {
+  padding: 1px 7px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.alarm-level.error {
+  background: var(--fault-bg);
+  color: var(--fault-fg);
+}
+
+.alarm-level.warning {
+  background: var(--pause-bg);
+  color: var(--pause-fg);
+}
+
+.alarm-detail {
+  margin-top: 3px;
+  color: var(--text-2);
+  font-size: 15px;
+  overflow-wrap: anywhere;
+}
+
+.alarm-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  color: var(--text-3);
+  font-size: 13px;
+}
+
+.alarm-meta code {
+  font-family: var(--mono);
+}
