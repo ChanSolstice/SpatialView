@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">SpatialView</string>
+    <string name="title_activity_main">SpatialView</string>
+    <string name="package_name">com.spatialview.app</string>
+    <string name="custom_url_scheme">com.spatialview.app</string>
+</resources>
