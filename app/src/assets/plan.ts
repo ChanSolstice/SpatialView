@@ -285,8 +285,14 @@ export interface PlanResult {
   parseMs: number
 }
 
-/** Worker 交回主线程的消息。 */
-export type PlanReply = ({ ok: true } & PlanResult) | { ok: false; error: string }
+/** 主线程发给 Worker 的消息：加载一个规划文件，或中止进行中的加载。id 是主线程分配的请求编号。 */
+export type PlanWorkerMessage =
+  { type: 'load'; id: number; request: PlanRequest } | { type: 'abort'; id: number }
+
+/** Worker 交回主线程的消息，id 与请求对应。 */
+export type PlanReply = { id: number } & (
+  ({ ok: true } & PlanResult) | { ok: false; error: string }
+)
 
 /** 下载并解析规划文件。下载失败、HTTP 状态不是 2xx、不是有效的 JSON 时抛出 PlanError。 */
 export async function fetchPlan(

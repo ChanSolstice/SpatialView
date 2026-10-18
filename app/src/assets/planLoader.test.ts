@@ -3,8 +3,15 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { createAppStore, type AppStore } from '../store/store.ts'
 import { stateForPhase, STATE_IDS } from '../testing/fixtures.ts'
 import { testPlanJson } from '../testing/plan.ts'
-import { installPlanLoader, type LoadPlan } from './planLoader.ts'
-import { fetchPlan, type PlanRequest } from './plan.ts'
+import { createWorkerLoadPlan, installPlanLoader, type LoadPlan } from './planLoader.ts'
+import {
+  fetchPlan,
+  PlanError,
+  type PlanReply,
+  type PlanRequest,
+  type PlanResult,
+  type PlanWorkerMessage,
+} from './plan.ts'
 
 const BASE = 'http://server:8080'
 
@@ -134,5 +141,82 @@ describe('installPlanLoader（架构设计 5.6）', () => {
     pending[1]?.respond(json('plan_a'))
     await flush()
     expect(plan().status).toBe('ready')
+  })
+})
+
+/** 记录收到的消息，由测试决定何时回复。 */
+class FakeWorker {
+  onmessage: ((event: MessageEvent<PlanReply>) => void) | null = null
+  onerror: ((event: ErrorEvent) => void) | null = null
+  posted: PlanWorkerMessage[] = []
+  terminated = false
+  postMessage(message: PlanWorkerMessage) {
+    this.posted.push(message)
+  }
+  terminate() {
+    this.terminated = true
+  }
+  reply(reply: PlanReply) {
+    this.onmessage?.({ data: reply } as MessageEvent<PlanReply>)
+  }
+}
+
+describe('规划 Worker：常驻，各次加载共用（阶段规划 4.3）', () => {
+  const request = (planId: string): PlanRequest => ({
+    url: `${BASE}/plans/${planId}.json`,
+    planId,
+    modelId: STATE_IDS.model,
+    arrowSpacing: 0.05,
+  })
+  const result = (planId: string) =>
+    ({ data: { planId }, downloadedAt: 0, downloadMs: 1, parseMs: 1 }) as unknown as PlanResult
+  let workers: FakeWorker[]
+  let load: LoadPlan
+
+  beforeEach(() => {
+    workers = []
+    load = createWorkerLoadPlan(() => {
+      const worker = new FakeWorker()
+      workers.push(worker)
+      return worker as unknown as Worker
+    })
+  })
+
+  it('第一次加载时创建 Worker，之后共用；结果按请求编号对应', async () => {
+    expect(workers).toHaveLength(0)
+    const a = load(request('plan_a'), new AbortController().signal)
+    const b = load(request('plan_b'), new AbortController().signal)
+    expect(workers).toHaveLength(1)
+    const [first, second] = workers[0]?.posted ?? []
+    expect(first).toMatchObject({ type: 'load', request: { planId: 'plan_a' } })
+    expect(second).toMatchObject({ type: 'load', request: { planId: 'plan_b' } })
+    workers[0]?.reply({ id: second?.id ?? 0, ok: true, ...result('plan_b') })
+    workers[0]?.reply({ id: first?.id ?? 0, ok: false, error: '下载失败：HTTP 404' })
+    await expect(b).resolves.toMatchObject({ data: { planId: 'plan_b' } })
+    await expect(a).rejects.toEqual(new PlanError('下载失败：HTTP 404'))
+    expect(workers[0]?.terminated).toBe(false)
+  })
+
+  it('中止：通知 Worker 中止下载，之后到达的结果丢弃', async () => {
+    const controller = new AbortController()
+    const a = load(request('plan_a'), controller.signal)
+    controller.abort()
+    await expect(a).rejects.toMatchObject({ name: 'AbortError' })
+    const id = workers[0]?.posted[0]?.id ?? 0
+    expect(workers[0]?.posted[1]).toEqual({ type: 'abort', id })
+    workers[0]?.reply({ id, ok: true, ...result('plan_a') })
+    const b = load(request('plan_b'), new AbortController().signal)
+    expect(workers).toHaveLength(1)
+    workers[0]?.reply({ id: workers[0]?.posted[2]?.id ?? 0, ok: true, ...result('plan_b') })
+    await expect(b).resolves.toMatchObject({ data: { planId: 'plan_b' } })
+  })
+
+  it('Worker 出错：进行中的加载失败，下次加载时重新创建 Worker', async () => {
+    const a = load(request('plan_a'), new AbortController().signal)
+    workers[0]?.onerror?.({ message: '脚本加载失败' } as ErrorEvent)
+    await expect(a).rejects.toEqual(new PlanError('规划文件解析失败：脚本加载失败'))
+    expect(workers[0]?.terminated).toBe(true)
+    void load(request('plan_b'), new AbortController().signal)
+    expect(workers).toHaveLength(2)
   })
 })
