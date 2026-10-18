@@ -1,11 +1,13 @@
 /**
- * 工程面板（需求 10.3；前端UI设计 4.7）：常用项表单和完整 JSON 编辑、恢复默认、保存，底部显示版本。
+ * 工程面板（需求 10.3；前端UI设计 4.7）：常用项表单和完整 JSON 编辑、恢复默认、保存，底部显示版本，
+ * 包括交付时需要记录的 WebView 版本（架构设计 5.10）。
  * 保存或恢复默认后重新加载页面，按新配置重新连接。面板在对话框之上、急停区之下，急停仍然可按。
  */
 import { useMemo, useState } from 'react'
 import { prepareOverride, resetOverride, saveOverride } from '../../config/engineering.ts'
 import { DEFAULT_CONFIG } from '../../config/load.ts'
 import { isJsonObject, type JsonObject } from '../../domain/configMerge.ts'
+import { webViewVersion } from '../../platform/webview.ts'
 import { INTERFACE_VERSION } from '../../ros/contract.ts'
 import { useRuntime } from '../runtimeContext.ts'
 
@@ -108,6 +110,7 @@ export function EngineeringPanel({ onClose, reload = () => window.location.reloa
       <div className="eng-foot">
         <span>APP 版本 {__APP_VERSION__}</span>
         <span>期望接口版本 {INTERFACE_VERSION}</span>
+        <span>WebView 版本 {webViewVersion(navigator.userAgent) ?? '未知'}</span>
         <span>默认配置版本 {DEFAULT_CONFIG.config_version}</span>
         <span>覆盖配置版本 {config.overrideVersion ?? '无'}</span>
       </div>

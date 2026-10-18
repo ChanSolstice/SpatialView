@@ -29,6 +29,12 @@ npm run build
 npx cap sync android
 (cd android && ./gradlew --no-daemon "$task")
 
+# 交付记录（架构设计 5.10）：包名和版本、APK 的 SHA-256；release 包另外给出签名证书的 SHA-256
 apk=$(find android/app/build/outputs/apk/"$type" -name '*.apk' | head -n 1)
-version=$(node -p "require('./package.json').version")
-echo "APK：app/$apk（版本 $version）"
+build_tools=$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)
+echo "APK：app/$apk"
+"$build_tools/aapt2" dump badging "$apk" | sed -n 1p
+echo "APK SHA-256：$(sha256sum "$apk" | cut -d ' ' -f 1)"
+if [ "$type" = release ]; then
+  "$build_tools/apksigner" verify --print-certs "$apk" | grep 'SHA-256'
+fi

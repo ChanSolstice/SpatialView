@@ -116,6 +116,8 @@ describe('工程面板（需求 10.3；前端UI设计 4.7）', () => {
     expect(screen.getByText(/覆盖配置保存于配置版本 0，当前默认配置版本为 1/)).toBeTruthy()
     const foot = screen.getByTestId('engineering-panel').querySelector('.eng-foot')?.textContent
     expect(foot).toContain('期望接口版本 1.0')
+    // jsdom 的 User-Agent 中没有 Chrome 版本
+    expect(foot).toContain('WebView 版本 未知')
     expect(foot).toContain('默认配置版本 1')
     expect(foot).toContain('覆盖配置版本 0')
     fireEvent.click(screen.getByRole('button', { name: '恢复默认' }))
