@@ -1,16 +1,25 @@
 from pathlib import Path
 
-from tools.soak.procmem import chrome_memory_mb, parse_ppid, parse_pss_kb, process_type
+from tools.soak.procmem import chrome_memory_mb, parse_memory_kb, parse_ppid, process_type
 
 
 def test_parse_ppid_with_spaces_and_parens_in_name():
     assert parse_ppid("4321 (chrome (renderer)) S 1234 4321 4321 0 -1") == 1234
 
 
-def test_parse_pss_kb():
-    text = "55d0-7ffd ---p 00000000 00:00 0 [rollup]\nRss: 2048 kB\nPss: 1536 kB\n"
-    assert parse_pss_kb(text) == 1536
-    assert parse_pss_kb("Rss: 1 kB\n") is None
+def test_parse_memory_kb_counts_anonymous_shared_and_swapped():
+    text = (
+        "55d0-7ffd ---p 00000000 00:00 0 [rollup]\n"
+        "Rss: 201720 kB\nPss: 140107 kB\nPss_Anon: 102350 kB\nPss_File: 15308 kB\n"
+        "Pss_Shmem: 22448 kB\nSwap: 25692 kB\nSwapPss: 12840 kB\n"
+    )
+    # 程序文件的映射不计，换出到交换区的计入
+    assert parse_memory_kb(text) == 102350 + 22448 + 12840
+
+
+def test_parse_memory_kb_falls_back_to_pss():
+    assert parse_memory_kb("Rss: 2048 kB\nPss: 1536 kB\nSwapPss: 64 kB\n") == 1600
+    assert parse_memory_kb("Rss: 1 kB\n") is None
 
 
 def test_process_type():

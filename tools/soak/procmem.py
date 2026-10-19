@@ -1,4 +1,4 @@
-"""本机 Chrome 各进程的内存（Linux 的 /proc）：按进程类型（命令行中的 --type=）累计 PSS。
+"""本机 Chrome 各进程的内存（Linux 的 /proc）：按进程类型（命令行中的 --type=）累计。
 
 three.js 的几何体和纹理在 SwiftShader 中占用 GPU 进程的内存，类型化数组占用渲染进程的内存，
 都不计入 JS 堆，所以除了 JS 堆还要看这两类进程。
@@ -17,10 +17,21 @@ def parse_ppid(stat: str) -> int:
     return int(stat.rsplit(")", 1)[1].split()[1])
 
 
-def parse_pss_kb(smaps_rollup: str) -> int | None:
+def parse_memory_kb(smaps_rollup: str) -> int | None:
+    """进程占用的内存：匿名内存和共享内存的 PSS，加上换出到交换区的部分（SwapPss）。
+
+    不直接用 Pss：其中包括程序文件的映射（Chrome 约 80 MB），内存紧张时内核会丢弃这些页、需要时再从磁盘读回，
+    数值随之起落；换出到交换区的页也不计入 Pss。内核不提供 Pss_Anon 时退回到 Pss 加 SwapPss。
+    """
+    fields = {}
     for line in smaps_rollup.splitlines():
-        if line.startswith("Pss:"):
-            return int(line.split()[1])
+        name, _, rest = line.partition(":")
+        if name in ("Pss", "Pss_Anon", "Pss_Shmem", "SwapPss"):
+            fields[name] = int(rest.split()[0])
+    if "Pss_Anon" in fields:
+        return fields["Pss_Anon"] + fields.get("Pss_Shmem", 0) + fields.get("SwapPss", 0)
+    if "Pss" in fields:
+        return fields["Pss"] + fields.get("SwapPss", 0)
     return None
 
 
@@ -55,14 +66,14 @@ def descendants(root: int, proc: Path = PROC) -> list[int]:
 
 
 def chrome_memory_mb(root: int, proc: Path = PROC) -> dict[str, float]:
-    """按进程类型累计的 PSS，单位 MB。"""
+    """按进程类型累计的内存（parse_memory_kb），单位 MB。"""
     totals: dict[str, float] = {}
     for pid in descendants(root, proc):
         try:
             kind = process_type((proc / str(pid) / "cmdline").read_bytes())
-            pss = parse_pss_kb((proc / str(pid) / "smaps_rollup").read_text())
+            used = parse_memory_kb((proc / str(pid) / "smaps_rollup").read_text())
         except OSError:
             continue
-        if pss is not None:
-            totals[kind] = totals.get(kind, 0.0) + pss / 1024
+        if used is not None:
+            totals[kind] = totals.get(kind, 0.0) + used / 1024
     return totals
