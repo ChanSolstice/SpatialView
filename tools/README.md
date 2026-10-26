@@ -9,6 +9,7 @@
 ```bash
 uv run python -m tools.sample_data --size small   # 29 个表面、930 个三角面、665 点
 uv run python -m tools.sample_data --size large   # 483 个表面、292,834 个三角面、98,459 点
+uv run python -m tools.sample_data --size demo    # 圆台：10 个表面、5,760 个三角面、1,746 点，演示视频用
 ```
 
 输出到 `samples/<规模>/`（不提交）：`models/<model_id>.glb`、`plans/<plan_id>.json` 和 `manifest.json`，目录结构与接口文档第 9 节一致。

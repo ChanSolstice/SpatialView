@@ -3,15 +3,33 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 import numpy as np
 
 from tools.common.glb import GlbBuilder
 from tools.common.urdf import Chain, parse_urdf, quaternion_xyzw, solve_ik
-from tools.sample_data.path import LARGE_PATH, SMALL_PATH, PathSpec, TcpPath, build_path
-from tools.sample_data.workpiece import LARGE, SMALL, Surface, WorkpieceSpec, build_surfaces
+from tools.sample_data.path import (
+    DEMO_PATH,
+    LARGE_PATH,
+    SMALL_PATH,
+    PathSpec,
+    TcpPath,
+    build_frustum_path,
+    build_path,
+)
+from tools.sample_data.workpiece import (
+    DEMO,
+    LARGE,
+    SMALL,
+    Surface,
+    WorkpieceSpec,
+    build_frustum_surfaces,
+    build_surfaces,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_URDF = REPO_ROOT / "app/public/robot/aubo_i5H_dev.urdf"
@@ -29,18 +47,33 @@ class SampleError(RuntimeError):
 @dataclass(frozen=True)
 class SampleSize:
     name: str
-    workpiece: WorkpieceSpec
-    path: PathSpec
+    build: Callable[[], tuple[list[Surface], TcpPath, list[str]]]  # 表面、TCP 路径和规划的表面
     model_id: str
     plan_id: str
+    coarse_stride: int = COARSE_STRIDE
+
+
+def _block(workpiece: WorkpieceSpec, path: PathSpec) -> tuple[list[Surface], TcpPath, list[str]]:
+    """曲面块体：路径覆盖全部顶面表面。"""
+    surfaces = build_surfaces(workpiece)
+    planned = [s.surface_id for s in surfaces if s.surface_id.startswith("top_")]
+    return surfaces, build_path(workpiece, path), planned
+
+
+def _frustum() -> tuple[list[Surface], TcpPath, list[str]]:
+    return build_frustum_surfaces(DEMO), build_frustum_path(DEMO, DEMO_PATH), DEMO_PATH.surface_ids
 
 
 SIZES = {
     "small": SampleSize(
-        "small", SMALL, SMALL_PATH, "model_20261015T080000", "plan_20261015T080500"
+        "small", partial(_block, SMALL, SMALL_PATH), "model_20261015T080000", "plan_20261015T080500"
     ),
     "large": SampleSize(
-        "large", LARGE, LARGE_PATH, "model_20261015T090000", "plan_20261015T090500"
+        "large", partial(_block, LARGE, LARGE_PATH), "model_20261015T090000", "plan_20261015T090500"
+    ),
+    # 演示视频用的圆台：工具姿态沿圆周变化较快，顺序求解的点取得更密
+    "demo": SampleSize(
+        "demo", _frustum, "model_20261026T100000", "plan_20261026T100500", coarse_stride=10
     ),
 }
 
@@ -58,14 +91,16 @@ def build_model(surfaces: list[Surface], model_id: str) -> bytes:
     return builder.build({"model_id": model_id})
 
 
-def solve_joint_trajectory(chain: Chain, tcp: TcpPath) -> np.ndarray:
+def solve_joint_trajectory(
+    chain: Chain, tcp: TcpPath, coarse_stride: int = COARSE_STRIDE
+) -> np.ndarray:
     count = len(tcp.t)
     targets = np.zeros((count, 4, 4))
     targets[:, :3, :3] = tcp.rotations
     targets[:, :3, 3] = tcp.positions
     targets[:, 3, 3] = 1.0
 
-    coarse = np.unique(np.r_[np.arange(0, count, COARSE_STRIDE), count - 1])
+    coarse = np.unique(np.r_[np.arange(0, count, coarse_stride), count - 1])
     solutions = np.empty((len(coarse), len(chain.names)))
     seed = REFERENCE_POSE
     for k, index in enumerate(coarse):
@@ -95,8 +130,7 @@ def solve_joint_trajectory(chain: Chain, tcp: TcpPath) -> np.ndarray:
 
 
 def build_plan(
-    size: SampleSize,
-    surfaces: list[Surface],
+    surface_ids: list[str],
     chain: Chain,
     tcp: TcpPath,
     q: np.ndarray,
@@ -111,7 +145,7 @@ def build_plan(
         "plan_id": plan_id,
         "model_id": model_id,
         "frame_id": "base_link",
-        "surface_ids": [s.surface_id for s in surfaces if s.surface_id.startswith("top_")],
+        "surface_ids": surface_ids,
         "duration": float(t[-1]),
         "joint_trajectory": {
             "joint_names": chain.names,
@@ -156,10 +190,9 @@ def generate(
     robot = parse_urdf(urdf)
     chain = robot.chain(tcp_link)
 
-    surfaces = build_surfaces(size.workpiece)
-    tcp = build_path(size.workpiece, size.path)
-    q = solve_joint_trajectory(chain, tcp)
-    plan = build_plan(size, surfaces, chain, tcp, q, model_id, plan_id)
+    surfaces, tcp, planned = size.build()
+    q = solve_joint_trajectory(chain, tcp, size.coarse_stride)
+    plan = build_plan(planned, chain, tcp, q, model_id, plan_id)
 
     rounded = np.array([p["positions"] for p in plan["joint_trajectory"]["points"]])
     path_points = np.array([p["p"] for p in plan["tcp_path"]["points"]])

@@ -1,4 +1,8 @@
-"""合成工件：放在桌面上的曲面块体。顶面按网格分成多个表面，四个侧面和底面另成表面。"""
+"""合成工件，都放在桌面上（z = 0）。
+
+- 曲面块体（small、large）：顶面按网格分成多个表面，四个侧面和底面另成表面。
+- 圆台（demo，演示视频用）：顶面一个表面，侧面沿圆周分成若干表面，底面贴着桌面、不可清洗。
+"""
 
 from __future__ import annotations
 
@@ -63,6 +67,59 @@ SMALL = WorkpieceSpec(
     patch_quads=(4, 4),
     wall_layers=2,
     wall_patches=(2, 2),
+)
+
+
+@dataclass(frozen=True)
+class FrustumSpec:
+    """圆台，轴线竖直。侧面表面 k 以方位角 k × 360° / sectors 为中心，方位角从 base_link 的 X 轴起算。"""
+
+    center: tuple[float, float]  # 底面圆心在 base_link 下的 x、y，米
+    bottom_radius: float
+    top_radius: float
+    height: float
+    sectors: int  # 侧面沿圆周分成的表面数
+    sector_segments: int  # 每个侧面表面沿圆周的网格数
+    side_layers: int  # 侧面沿母线的网格数
+    disk_rings: int  # 顶面、底面沿半径的网格数
+
+    def radius(self, z):
+        return (
+            self.bottom_radius
+            + (self.top_radius - self.bottom_radius) * np.asarray(z) / self.height
+        )
+
+    def side_point(self, theta, z) -> np.ndarray:
+        """侧面上方位角 theta、高度 z 处的点，形状 (..., 3)。"""
+        theta, z = np.broadcast_arrays(np.asarray(theta, float), np.asarray(z, float))
+        r = self.radius(z)
+        cx, cy = self.center
+        return np.stack([cx + r * np.cos(theta), cy + r * np.sin(theta), z], axis=-1)
+
+    def side_normal(self, theta) -> np.ndarray:
+        """侧面在方位角 theta 处朝外的单位法向量（沿母线不变），形状 (..., 3)。"""
+        theta = np.asarray(theta, float)
+        slope = np.full_like(theta, self.bottom_radius - self.top_radius)
+        n = np.stack([self.height * np.cos(theta), self.height * np.sin(theta), slope], axis=-1)
+        return n / np.linalg.norm(n, axis=-1, keepdims=True)
+
+    def sector_range(self, k: int) -> tuple[float, float]:
+        """侧面表面 k 的方位角范围，弧度。"""
+        width = 2 * math.pi / self.sectors
+        return ((k - 0.5) * width, (k + 0.5) * width)
+
+
+# 底面直径约 15 厘米（服务端团队的建议），放在机械臂正前方。更近时清洗朝向机械臂的侧面下部，
+# 肘部要折到接近极限
+DEMO = FrustumSpec(
+    center=(0.55, 0.0),
+    bottom_radius=0.075,
+    top_radius=0.05,
+    height=0.10,
+    sectors=8,
+    sector_segments=24,
+    side_layers=4,
+    disk_rings=6,
 )
 
 
@@ -155,4 +212,57 @@ def build_surfaces(spec: WorkpieceSpec) -> list[Surface]:
     down = np.array([0.0, 0.0, -1.0])
     triangles = _orient(np.array([[0, 1, 2], [0, 2, 3]]), corners, down)
     surfaces.append(_surface("bottom", False, corners, np.tile(down, (4, 1)), triangles))
+    return surfaces
+
+
+def _disk(
+    spec: FrustumSpec, z: float, radius: float, outward: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """顶面或底面的顶点、法向和三角面：圆心一个顶点，外面 disk_rings 圈，每圈的顶点数与侧面沿圆周的网格数相同。"""
+    count = spec.sectors * spec.sector_segments
+    angles = np.arange(count) * 2 * math.pi / count
+    radii = np.arange(1, spec.disk_rings + 1) * radius / spec.disk_rings
+    cx, cy = spec.center
+    rings = np.stack(
+        [
+            cx + radii[:, None] * np.cos(angles),
+            cy + radii[:, None] * np.sin(angles),
+            np.full((len(radii), count), z),
+        ],
+        axis=-1,
+    ).reshape(-1, 3)
+    positions = np.vstack([[cx, cy, z], rings])
+    a = np.arange(count)
+    b = (a + 1) % count
+    fan = np.stack([np.zeros(count, int), 1 + a, 1 + b], axis=1)
+    # 相邻两圈之间：inner 为里圈第一个顶点的编号
+    inner = 1 + np.arange(spec.disk_rings - 1)[:, None] * count
+    outer = inner + count
+    bands = np.stack([inner + a, outer + a, outer + b, inner + a, outer + b, inner + b], axis=-1)
+    triangles = np.vstack([fan, bands.reshape(-1, 3)])
+    normals = np.tile(outward, (len(positions), 1))
+    return positions, normals, _orient(triangles, positions, outward)
+
+
+def build_frustum_surfaces(spec: FrustumSpec) -> list[Surface]:
+    positions, normals, triangles = _disk(spec, spec.height, spec.top_radius, np.array([0.0, 0, 1]))
+    surfaces = [_surface("top", True, positions, normals, triangles)]
+    for k in range(spec.sectors):
+        start, end = spec.sector_range(k)
+        theta, z = np.meshgrid(
+            np.linspace(start, end, spec.sector_segments + 1),
+            np.linspace(0.0, spec.height, spec.side_layers + 1),
+            indexing="ij",
+        )
+        positions = spec.side_point(theta, z).reshape(-1, 3)
+        normals = spec.side_normal(theta).reshape(-1, 3)
+        # 一个表面只跨 360° / sectors，三角面都与表面中线处的法向同侧
+        outward = spec.side_normal((start + end) / 2)
+        triangles = _orient(
+            _grid_triangles(spec.sector_segments, spec.side_layers), positions, outward
+        )
+        surfaces.append(_surface(f"side_{k:02d}", True, positions, normals, triangles))
+    positions, normals, triangles = _disk(spec, 0.0, spec.bottom_radius, np.array([0.0, 0, -1]))
+    # 底面贴着桌面，不能清洗
+    surfaces.append(_surface("bottom", False, positions, normals, triangles))
     return surfaces
