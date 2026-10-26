@@ -22,14 +22,10 @@ from statistics import median
 
 import websocket
 
-from tools.soak.app import MEASURES, AppDriver, StepError
+from tools.soak.app import MEASURES, AppDriver, StepError, override_script
 from tools.soak.cdp import CdpError, HeadlessChrome, Page, page_ws_url
 from tools.soak.procmem import chrome_memory_mb
 from tools.soak.report import METRICS, judge
-
-# 与工程入口保存的覆盖配置相同（app/src/config/load.ts 的 OVERRIDE_KEY）。
-# 浏览器中 Capacitor Preferences 存在 localStorage，键名加 "CapacitorStorage." 前缀
-OVERRIDE_STORAGE_KEY = "CapacitorStorage.spatialview.config_override"
 
 COLUMNS = [
     "round",
@@ -47,16 +43,6 @@ COLUMNS = [
     "chrome_mb",
     "alarms",
 ]
-
-
-def override_script(rosbridge: str | None, http: str | None) -> str:
-    server = {}
-    if rosbridge:
-        server["rosbridge_url"] = rosbridge
-    if http:
-        server["http_base_url"] = http
-    value = json.dumps({"config_version": 1, "server": server})
-    return f"localStorage.setItem({json.dumps(OVERRIDE_STORAGE_KEY)}, {json.dumps(value)})"
 
 
 def sample(page: Page, chrome: HeadlessChrome | None) -> dict:

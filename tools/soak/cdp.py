@@ -14,6 +14,7 @@ import subprocess
 import tempfile
 import time
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 
 import websocket
@@ -110,9 +111,10 @@ def page_ws_url(endpoint: str, timeout: float = 15) -> str:
 
 
 class HeadlessChrome:
-    """本机的无头 Chrome，用 SwiftShader 软件渲染 WebGL。页面尺寸由调用方用 Emulation 设置。"""
+    """本机的无头 Chrome，用 SwiftShader 软件渲染 WebGL。页面尺寸由调用方用 Emulation 设置，
+    extra_args 为附加的命令行参数。"""
 
-    def __init__(self, port: int = 9399) -> None:
+    def __init__(self, port: int = 9399, extra_args: Sequence[str] = ()) -> None:
         chrome = shutil.which("google-chrome") or shutil.which("chromium")
         if not chrome:
             raise CdpError("找不到 google-chrome 或 chromium")
@@ -131,6 +133,7 @@ class HeadlessChrome:
                 "--disable-renderer-backgrounding",
                 "--no-first-run",
                 "--window-size=1280,800",
+                *extra_args,
                 "about:blank",
             ],
             env=env,

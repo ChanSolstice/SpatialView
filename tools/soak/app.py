@@ -50,11 +50,29 @@ MEASURES = {
     "plan_display_ms": "spatialview:plan-display",
 }
 
+# 与工程入口保存的覆盖配置相同（app/src/config/load.ts 的 OVERRIDE_KEY）。
+# 浏览器中 Capacitor Preferences 存在 localStorage，键名加 "CapacitorStorage." 前缀
+OVERRIDE_STORAGE_KEY = "CapacitorStorage.spatialview.config_override"
+
 # 选面时点击的位置：三维区中间一带，按三维区的宽高比例。默认视角下工件在三维区中央
 SELECT_TAPS = [(0.5, 0.5), (0.42, 0.45), (0.58, 0.45), (0.45, 0.58), (0.55, 0.58)]
 # 不能接受新指令的作业阶段
 BUSY_PHASES = {"扫描中", "重建中", "规划中", "停止中"}
 NO_ALARM = "无告警"
+
+
+def override_script(rosbridge: str | None, http: str | None, scene: dict | None = None) -> str:
+    """在页面的脚本之前写入覆盖配置：服务端地址，以及 scene 中给出的三维场景配置项（需求 10.2）。"""
+    server = {}
+    if rosbridge:
+        server["rosbridge_url"] = rosbridge
+    if http:
+        server["http_base_url"] = http
+    override = {"config_version": 1, "server": server}
+    if scene:
+        override["scene"] = scene
+    value = json.dumps(override)
+    return f"localStorage.setItem({json.dumps(OVERRIDE_STORAGE_KEY)}, {json.dumps(value)})"
 
 
 class StepError(RuntimeError):
