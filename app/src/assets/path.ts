@@ -7,7 +7,13 @@ import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import type { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js'
 import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { passedCount } from '../domain/interpolation.ts'
-import { ARROW_GEOMETRY, ARROW_MATERIALS, PATH_COLORS, PATH_MATERIALS } from './materials.ts'
+import {
+  ARROW_GEOMETRY,
+  ARROW_MATERIALS,
+  ARROW_SPACING,
+  PATH_COLORS,
+  PATH_MATERIALS,
+} from './materials.ts'
 import type { Arrows, PlanData } from './plan.ts'
 
 export interface LoadedPlan {
@@ -35,7 +41,7 @@ function lines(positions: Float32Array, name: string, material: LineMaterial): L
 
 const UP = new Vector3(0, 1, 0)
 
-function arrows(data: Arrows, name: string, process: boolean): InstancedMesh {
+function arrows(data: Arrows, name: string, process: boolean, size: number): InstancedMesh {
   const count = data.times.length
   const mesh = new InstancedMesh(
     ARROW_GEOMETRY,
@@ -47,7 +53,7 @@ function arrows(data: Arrows, name: string, process: boolean): InstancedMesh {
   const position = new Vector3()
   const direction = new Vector3()
   const rotation = new Quaternion()
-  const scale = new Vector3(1, 1, 1)
+  const scale = new Vector3().setScalar(size)
   const blue = new Color(PATH_COLORS.process)
   for (let i = 0; i < count; i++) {
     position.fromArray(data.positions, i * 3)
@@ -77,8 +83,9 @@ export function buildPath(data: PlanData): LoadedPlan {
   progress.renderOrder = 2
   progress.visible = false
 
-  const processArrows = arrows(data.processArrows, 'process-arrows', true)
-  const travelArrows = arrows(data.travelArrows, 'travel-arrows', false)
+  const size = data.arrowSpacing / ARROW_SPACING
+  const processArrows = arrows(data.processArrows, 'process-arrows', true, size)
+  const travelArrows = arrows(data.travelArrows, 'travel-arrows', false, size)
 
   const group = new Group()
   group.name = data.planId

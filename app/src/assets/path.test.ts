@@ -1,4 +1,4 @@
-import { Color, type InstancedMesh } from 'three'
+import { Color, type InstancedMesh, Matrix4, Vector3 } from 'three'
 import type { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
 import { describe, expect, it } from 'vitest'
 import { testPlanJson } from '../testing/plan.ts'
@@ -30,6 +30,17 @@ describe('buildPath', () => {
     expect(plan.start.toArray()).toEqual([0.3, 0.05, 0.1])
     expect(plan.end.x).toBeCloseTo(0.5, 6)
     expect(plan.sphere.center.x).toBeCloseTo(0.4, 6)
+  })
+
+  it('箭头的大小与间距成比例：间距 0.16 米时为原始大小', () => {
+    const scale = (plan: ReturnType<typeof build>) => {
+      const matrix = new Matrix4()
+      child<InstancedMesh>(plan, 'process-arrows').getMatrixAt(0, matrix)
+      return new Vector3().setFromMatrixScale(matrix).toArray()
+    }
+    expect(scale(build())).toEqual([0.125, 0.125, 0.125].map((v) => expect.closeTo(v, 9)))
+    const reference = buildPath(parsePlan(testPlanJson(IDS), IDS, 0.16))
+    expect(scale(reference)).toEqual([1, 1, 1].map((v) => expect.closeTo(v, 9)))
   })
 
   it('进度：已走过的工艺段叠加绿线，对应的箭头变绿；null 时恢复', () => {

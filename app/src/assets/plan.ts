@@ -40,6 +40,8 @@ export interface PlanData {
   travel: Float32Array
   processArrows: Arrows
   travelArrows: Arrows
+  /** 方向箭头的间距，米；箭头的大小与它成比例（前端UI设计第 5 节） */
+  arrowSpacing: number
   start: Vec3
   end: Vec3
   /** TCP 路径点的包围盒 */
@@ -262,6 +264,7 @@ export function parsePlan(
     travel,
     processArrows: processArrows.build(),
     travelArrows: travelArrows.build(),
+    arrowSpacing,
     start: pointAt(0),
     end: pointAt(n - 1),
     min,

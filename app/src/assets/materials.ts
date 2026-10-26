@@ -77,8 +77,12 @@ export const SCREEN_LINE_MATERIALS: readonly LineMaterial[] = [
   ...Object.values(PATH_MATERIALS),
 ]
 
-/** 方向箭头：小圆锥，半径 9 毫米、长 26 毫米，尖端沿 +Y。工艺段的箭头按实例着色，随进度变绿。 */
+/**
+ * 方向箭头：小圆锥，尖端沿 +Y。工艺段的箭头按实例着色，随进度变绿。几何体为间距 ARROW_SPACING 时的大小
+ * （半径 9 毫米、长 26 毫米），其他间距按比例缩放，工件较小时调小间距，箭头也随之变小。
+ */
 export const ARROW_GEOMETRY = new ConeGeometry(0.009, 0.026, 12)
+export const ARROW_SPACING = 0.16
 export const ARROW_MATERIALS = {
   process: new MeshBasicMaterial({ color: 0xffffff }),
   travel: new MeshBasicMaterial({ color: PATH_COLORS.travel }),
