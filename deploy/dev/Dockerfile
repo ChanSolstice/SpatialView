@@ -16,7 +16,8 @@ RUN . /opt/ros/humble/setup.sh \
 COPY tools tools
 COPY app/public/robot/aubo_i5H_dev.urdf app/public/robot/aubo_i5H_dev.urdf
 RUN python3 -m tools.sample_data --size small --out samples/small >/dev/null \
- && python3 -m tools.sample_data --size large --out samples/large >/dev/null
+ && python3 -m tools.sample_data --size large --out samples/large >/dev/null \
+ && python3 -m tools.sample_data --size demo --out samples/demo >/dev/null
 
 COPY deploy deploy
 COPY deploy/dev/entrypoint.sh /entrypoint.sh

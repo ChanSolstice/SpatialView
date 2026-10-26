@@ -4,7 +4,7 @@
 #   docker compose -f deploy/docker-compose.dev.yml restart mock      # 模拟服务端程序重启
 #   docker compose -f deploy/docker-compose.dev.yml stop driver       # 模拟机械臂驱动离线
 #
-# 环境变量：SAMPLE_SIZE（small 或 large，默认 small）、MOCK_SPEED（加速倍率，默认 1）、ROS_DOMAIN_ID（默认 0）、
+# 环境变量：SAMPLE_SIZE（small、large 或 demo，默认 small）、MOCK_SPEED（加速倍率，默认 1）、ROS_DOMAIN_ID（默认 0）、
 # ROSBRIDGE_PORT、HTTP_PORT（本机端口，默认 9090、8080）。
 # APP 连接 ws://<本机>:9090 和 http://<本机>:8080。
 name: spatialview-dev

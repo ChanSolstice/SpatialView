@@ -1,6 +1,10 @@
-"""合成 TCP 路径：在工件顶面上按区域往复清洗，区域之间抬起走空行程。
+"""合成 TCP 路径。TCP 在工件表面上（激光焦点），工具 Z 轴指向工件。
 
-TCP 在顶面上（激光焦点），工具 Z 轴沿顶面法向指向工件，工具 X 轴取世界 X 在垂直面内的投影。
+- 曲面块体：在顶面上按区域往复清洗，区域之间抬起走空行程。工具 Z 轴沿顶面法向，X 轴取世界 X 在垂直面内的投影。
+- 圆台（演示用）：顶面从中心向外螺旋，越过边缘后在朝向机械臂的几块侧面上沿圆周往复、逐圈向下，
+  只在越过边缘时走一段空行程。顶面上工具竖直向下；侧面上工具比表面法向多朝下倾斜一些，否则清洗
+  下部时机械臂的腕部会低到桌面。工具 Y 轴沿圆周切向，越过边缘时工具绕它转向侧面。服务端实际规划的
+  是最短路径，不一定是这样的形式，演示中不必一致。
 """
 
 from __future__ import annotations
@@ -10,7 +14,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from tools.sample_data.workpiece import WorkpieceSpec
+from tools.sample_data.workpiece import FrustumSpec, WorkpieceSpec
 
 
 @dataclass(frozen=True)
@@ -45,11 +49,44 @@ SMALL_PATH = PathSpec(
 )
 
 
+@dataclass(frozen=True)
+class FrustumPathSpec:
+    sides: tuple[int, ...]  # 清洗的侧面表面编号，沿圆周连续
+    pitch: float  # 顶面螺旋相邻两圈的间距，米
+    spacing: float  # 侧面相邻两圈沿母线的间距，米
+    side_z: tuple[float, float]  # 侧面清洗的高度范围，米；靠近桌面的一段不清洗，工具不会碰到桌面
+    margin: float  # 路径离表面边缘的距离，米
+    process_speed: float  # 工艺段速度，米/秒
+    travel_speed: float  # 空行程速度，米/秒
+    lift: float  # 越过边缘时沿工具轴线离开表面的距离，米
+    tilt: float  # 侧面上工具比表面法向多朝下倾斜的角度，弧度
+    max_turn: float  # 空行程中相邻两点工具姿态的最大变化，弧度
+    dt: float  # 相邻两点的时间间隔，秒
+
+    @property
+    def surface_ids(self) -> list[str]:
+        return ["top", *(f"side_{k:02d}" for k in self.sides)]
+
+
+# 顶面和朝向机械臂的三块侧面（机械臂在圆台的 -X 方向，正对侧面 4）
+DEMO_PATH = FrustumPathSpec(
+    sides=(3, 4, 5),
+    pitch=0.008,
+    spacing=0.01,
+    side_z=(0.04, 0.09),
+    margin=0.005,
+    process_speed=0.02,
+    travel_speed=0.10,
+    lift=0.03,
+    tilt=math.radians(25),
+    max_turn=0.03,
+    dt=0.05,
+)
+
+
 @dataclass
 class TcpPath:
     t: np.ndarray  # (N,)
-    xy: np.ndarray  # (N, 2) 在顶面上的投影位置
-    lift: np.ndarray  # (N,) 高出顶面的距离
     process: np.ndarray  # (N,) bool
     positions: np.ndarray  # (N, 3)
     rotations: np.ndarray  # (N, 3, 3)，列为工具坐标系的 X、Y、Z 轴
@@ -130,4 +167,93 @@ def build_path(spec: WorkpieceSpec, path: PathSpec) -> TcpPath:
     x_axis /= np.linalg.norm(x_axis, axis=1, keepdims=True)
     y_axis = np.cross(z_axis, x_axis)
     rotations = np.stack([x_axis, y_axis, z_axis], axis=2)
-    return TcpPath(t, xy_all, lift_all, process_all, positions, rotations)
+    return TcpPath(t, process_all, positions, rotations)
+
+
+def _radial_frame(theta, elevation) -> np.ndarray:
+    """工具坐标系 (..., 3, 3)：Z 轴在方位角 theta 处的竖直平面内、朝向轴线，仰角为 elevation；
+    X 轴在同一平面内、比 Z 轴高 90°；Y 轴沿圆周切向。仰角 -90° 时 Z 轴竖直向下、X 轴朝向轴线。"""
+    theta, elevation = np.broadcast_arrays(np.asarray(theta, float), np.asarray(elevation, float))
+    inward = np.stack([-np.cos(theta), -np.sin(theta), np.zeros_like(theta)], axis=-1)
+    up = np.array([0.0, 0.0, 1.0])
+    ce, se = np.cos(elevation)[..., None], np.sin(elevation)[..., None]
+    z_axis = ce * inward + se * up
+    x_axis = -se * inward + ce * up
+    return np.stack([x_axis, np.cross(z_axis, x_axis), z_axis], axis=-1)
+
+
+def _spiral(radius: float, pitch: float, spacing: float) -> tuple[np.ndarray, np.ndarray]:
+    """从中心向外的阿基米德螺旋 r = pitch × φ / 2π，到半径 radius 为止，按不超过 spacing 的弧长取点。
+    返回各点的 φ 和 r，含起点（中心）。"""
+    phi = np.linspace(0.0, 2 * math.pi * radius / pitch, 20_000)
+    r = pitch * phi / (2 * math.pi)
+    length = np.concatenate([[0.0], np.cumsum(np.hypot(np.diff(r), r[1:] * np.diff(phi)))])
+    steps = math.ceil(length[-1] / spacing)
+    phi = np.interp(np.linspace(0.0, length[-1], steps + 1), length, phi)
+    return phi, pitch * phi / (2 * math.pi)
+
+
+def build_frustum_path(spec: FrustumSpec, path: FrustumPathSpec) -> TcpPath:
+    process_step = path.process_speed * path.dt
+    travel_step = path.travel_speed * path.dt
+    cx, cy = spec.center
+    # 侧面上沿圆周往复的方位角范围；两端离表面边缘 margin（按顶面半径换算成角度）
+    angle_margin = path.margin / spec.top_radius
+    theta_a = spec.sector_range(path.sides[0])[0] + angle_margin
+    theta_b = spec.sector_range(path.sides[-1])[1] - angle_margin
+    # 侧面的内法向朝下 atan2(...)，工具再多朝下 tilt
+    side_elevation = -math.atan2(spec.bottom_radius - spec.top_radius, spec.height) - path.tilt
+
+    positions: list[np.ndarray] = []
+    rotations: list[np.ndarray] = []
+    process: list[np.ndarray] = []
+
+    def add(points: np.ndarray, frames: np.ndarray, on: bool) -> None:
+        positions.append(points)
+        rotations.append(np.broadcast_to(frames, (len(points), 3, 3)))
+        process.append(np.full(len(points), on))
+
+    # 顶面：从中心向外螺旋，终点在侧面起点的正上方（方位角 theta_a）
+    phi, r = _spiral(spec.top_radius - path.margin, path.pitch, process_step)
+    angle = phi - phi[-1] + theta_a
+    spiral = np.column_stack(
+        [cx + r * np.cos(angle), cy + r * np.sin(angle), np.full_like(r, spec.height)]
+    )
+    add(spiral, _radial_frame(theta_a, -math.pi / 2), True)
+
+    # 越过边缘：抬起，移到侧面起点外侧，同时工具绕切向转向侧面，再沿工具轴线落到侧面上（落点属于下一段）
+    edge = spiral[-1]
+    side_start = spec.side_point(theta_a, path.side_z[1])
+    above = edge + np.array([0.0, 0.0, path.lift])
+    outside = side_start - path.lift * _radial_frame(theta_a, side_elevation)[:, 2]
+    up = _segment(edge, above, travel_step)
+    add(up, _radial_frame(theta_a, -math.pi / 2), False)
+    turn = side_elevation + math.pi / 2
+    steps = max(
+        2, math.ceil(np.linalg.norm(outside - above) / travel_step), math.ceil(turn / path.max_turn)
+    )
+    fraction = np.arange(1, steps + 1) / steps
+    add(
+        above + fraction[:, None] * (outside - above),
+        _radial_frame(theta_a, -math.pi / 2 + fraction * turn),
+        False,
+    )
+    down = _segment(outside, side_start, travel_step)[:-1]
+    add(down, _radial_frame(theta_a, side_elevation), False)
+
+    # 侧面：沿圆周往复，逐圈向下；相邻两圈之间沿母线下移，关闭激光
+    slant = math.hypot(spec.height, spec.bottom_radius - spec.top_radius)
+    rounds = math.ceil((path.side_z[1] - path.side_z[0]) / (path.spacing * spec.height / slant)) + 1
+    heights = np.linspace(path.side_z[1], path.side_z[0], rounds)
+    for k, z in enumerate(heights):
+        start, end = (theta_a, theta_b) if k % 2 == 0 else (theta_b, theta_a)
+        if k > 0:
+            between = _segment(np.array([heights[k - 1]]), np.array([z]), travel_step)[:-1, 0]
+            add(spec.side_point(start, between), _radial_frame(start, side_elevation), False)
+        steps = math.ceil(float(spec.radius(z)) * abs(end - start) / process_step)
+        theta = np.linspace(start, end, steps + 1)
+        add(spec.side_point(theta, z), _radial_frame(theta, side_elevation), True)
+
+    positions_all = np.concatenate(positions)
+    t = np.arange(len(positions_all)) * path.dt
+    return TcpPath(t, np.concatenate(process), positions_all, np.concatenate(rotations))

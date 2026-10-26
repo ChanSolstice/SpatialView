@@ -19,7 +19,7 @@ APP 的配置（需求文档 10.2）：`rosbridge_url` 为 `ws://<本机 IP>:909
 
 | 环境变量 | 默认值 | 说明 |
 | --- | --- | --- |
-| `SAMPLE_SIZE` | `small` | 样例规模：`small` 用于日常开发，`large`（约 30 万三角面、10 万点）用于性能验证 |
+| `SAMPLE_SIZE` | `small` | 样例规模：`small` 用于日常开发，`large`（约 30 万三角面、10 万点）用于性能验证，`demo`（圆台）用于录制演示视频 |
 | `MOCK_SPEED` | `1` | 扫描、重建、规划和执行的加速倍率 |
 | `ROSBRIDGE_PORT`、`HTTP_PORT` | `9090`、`8080` | 本机端口 |
 | `ROS_DOMAIN_ID` | `0` | 与同一网络中的其他 ROS 2 系统隔离 |
