@@ -99,3 +99,29 @@ uv run python -m tools.soak --endpoint http://127.0.0.1:9222 --out soak-report
 | `--dpr` | 本机 Chrome 的 `devicePixelRatio`，默认 1.5，与目标平板相同 |
 
 结果写在 `--out` 目录：`rounds.csv` 每轮一行，包括各步耗时、APP 记录的模型和路径显示耗时（架构设计 5.6）和内存；`summary.json` 是结论；失败的轮次有截图。内存指标为垃圾回收后的 JS 堆、DOM 节点数和事件监听数，本机 Chrome 另有渲染进程和 GPU 进程的内存：匿名内存和共享内存的 PSS，加上换出到交换区的部分；不计程序文件的映射，它们在内存紧张时由内核丢弃和读回，数值不稳定。three.js 的几何体在 SwiftShader 中占用 GPU 进程的内存。不通过时退出码为 1：崩溃、有失败的轮次、页面中有未捕获的异常、未运行满时长或轮数不够，或任一内存指标持续增长。
+
+## 演示视频 `demo`
+
+按分镜录制一段 APP 完整工作流程的视频（阶段规划阶段 13）：启动并连接，扫描与重建，旋转和缩放视角，选面，规划，轨迹动画，清洗（暂停、继续），清洗中急停与复位。使用圆台样例（`SAMPLE_SIZE=demo`），画面上只叠加触点标记，不加字幕；每段开始的时间写在 `timeline.txt`，便于之后配字幕或配音。
+
+本机没有 GPU，实时录屏达不到 30 帧。工具接管页面的时钟（`clock.js`：定时器、动画帧、`performance.now`、`Date`），逐帧推进 1/30 秒后截图；每帧固定占用 `--frame-seconds` 秒的真实时间，mock 的耗时和执行（故障注入的 `speed`）、CSS 动画按同样的比例放慢，视频中的进度和动画与真实节奏一致。扫描、重建、规划和清洗的等待时间按分镜压缩。
+
+```bash
+SAMPLE_SIZE=demo docker compose -f deploy/docker-compose.dev.yml up -d --force-recreate
+(cd app && NODE_ENV=development npx vite build --mode development --outDir dist-demo)
+python3 -m http.server 4174 --directory app/dist-demo &
+uv run python -m tools.demo --url http://127.0.0.1:4174/ --out demo-output
+```
+
+- 使用开发模式的构建：界面与打包产物相同，另有 `window.spatialviewScene`，用来求选面时要点的表面在屏幕上的位置。
+- 开始时 mock 应刚启动（作业阶段为无模型）、机械臂没有急停；再次录制前先重启 mock：`docker compose -f deploy/docker-compose.dev.yml restart mock`。
+- 需要 ffmpeg（`sudo apt install ffmpeg`）。中文字体为 Noto Sans CJK SC（`fonts-noto-cjk`），与平板相同。
+- 页面为 1280 × 800 CSS 像素、`devicePixelRatio` 1.5，与目标平板相同；像素比用 Chrome 的启动参数设置，用 Emulation 模拟像素比时，Chrome 处理较慢的触摸移动事件时坐标有误。
+
+| 参数 | 说明 |
+| --- | --- |
+| `--frame-seconds` | 每帧占用的真实时间，默认 1 秒，应大于本机绘制并截取一帧的时间；结束时打印超过它的帧数 |
+| `--fps` | 帧率，默认 30 |
+| `--quality` | 截图的 JPEG 质量，默认 92 |
+
+输出在 `--out` 目录：`spatialview-demo.mp4`（H.264，1920 × 1200）、`timeline.txt` 和逐帧截图 `frames/`；录制失败时有 `failed.png`。

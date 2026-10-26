@@ -2,6 +2,7 @@
 node_modules/
 app/dist/
 app/dev-dist/
+app/dist-demo/
 app/.env*.local
 *.tsbuildinfo
 .vite/
@@ -20,6 +21,9 @@ ros2_ws/log/
 
 # 生成的样例数据（由 tools/sample_data 生成，不提交）
 samples/
+
+# 演示视频的录制输出（tools/demo）
+demo-output/
 
 # 编辑器与系统
 .vscode/
