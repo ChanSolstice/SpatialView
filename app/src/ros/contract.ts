@@ -148,7 +148,7 @@ export const SERVICES = {
   resetEstop: { name: '/spatialview/reset_estop', type: 'spatialview_msgs/srv/ResetEstop' },
 } as const
 
-/** 机械臂驱动的急停 Service（接口文档 6.7）。名称为暂定名，以服务端在接口文档第 16 节填写的为准。 */
+/** 机械臂驱动的急停 Service（接口文档 6.7），名称已由服务端团队确认。 */
 export const ESTOP_SERVICE = {
   name: '/robot_driver/emergency_stop',
   type: 'std_srvs/srv/Trigger',

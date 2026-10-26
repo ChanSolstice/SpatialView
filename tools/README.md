@@ -57,7 +57,7 @@ uv run python -m tools.interface_check --rosbridge ws://<服务端主机>:9090 -
 
 | 其他参数 | 说明 |
 | --- | --- |
-| `--estop-service` | 机械臂急停 Service 的名称，默认为暂定名 `/robot_driver/emergency_stop` |
+| `--estop-service` | 机械臂急停 Service 的名称，默认 `/robot_driver/emergency_stop`（接口 6.7） |
 | `--urdf`、`--tcp-link` | 检查规划文件的关节名，并按正运动学核对工具末端是否沿 TCP 路径 |
 | `--wait` | 等待扫描、规划、停止完成的最长时间，默认 120 秒 |
 | `--connect-timeout` | 连接失败或服务端尚未就绪时重试的时长 |
