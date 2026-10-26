@@ -1,0 +1,129 @@
+/* 工程入口（前端UI设计 4.7）：只有维护人员使用，沿用同一套令牌 */
+.eng-hold {
+  display: flex;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.eng-dialog-body {
+  padding: 26px 30px 8px;
+}
+
+.eng-input {
+  width: 100%;
+  height: 48px;
+  margin-top: 14px;
+  padding: 0 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 18px;
+}
+
+.eng-error {
+  margin-top: 8px;
+  color: var(--danger);
+  font-size: 15px;
+}
+
+.eng-error-block {
+  white-space: pre-wrap;
+}
+
+/* 全屏白色页面；层级在对话框遮罩之上、急停区之下，右侧留出按钮栏，急停区仍然可见可按 */
+.eng {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-engineering);
+  display: flex;
+  flex-direction: column;
+  padding-right: 300px;
+  background: var(--surface);
+}
+
+.eng-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 64px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--divider);
+}
+
+.eng-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.eng-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 16px 20px;
+  overflow-y: auto;
+}
+
+.eng-note {
+  padding: 10px 14px;
+  border: 1px solid var(--warn-bd);
+  border-radius: 10px;
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  font-size: 15px;
+  white-space: pre-wrap;
+}
+
+.eng-note.is-error {
+  border-color: #f2c3bf;
+  background: var(--fault-bg);
+  color: var(--fault-fg);
+}
+
+.eng-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.eng-field {
+  display: flex;
+  flex-direction: column;
+  color: var(--text-2);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.eng-field .eng-input {
+  margin-top: 6px;
+}
+
+.eng-json {
+  min-height: 260px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.eng-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.eng-foot {
+  display: flex;
+  gap: 24px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--divider);
+  color: var(--text-3);
+  font-size: 13px;
+}

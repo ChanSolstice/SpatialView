@@ -6,7 +6,7 @@ import { installModelLoader } from './assets/loader.ts'
 import { installPlanLoader, type LoadPlan } from './assets/planLoader.ts'
 import { installRobotLoader, type LoadRobotModel } from './assets/robot.ts'
 import { devServerUrls, loadConfig, type LoadedConfig } from './config/load.ts'
-import type { Platform } from './platform/index.ts'
+import type { Platform, PreferenceStore } from './platform/index.ts'
 import { createCommands, type Commands } from './ros/commands.ts'
 import { ConnectionManager } from './ros/connection.ts'
 import { createStateSync } from './ros/stateSync.ts'
@@ -22,6 +22,8 @@ export const REFRESH_TOAST = {
 
 export interface Runtime {
   config: LoadedConfig
+  /** 工程入口保存覆盖配置时使用 */
+  preferences: PreferenceStore
   store: AppStore
   connection: ConnectionManager
   commands: Commands
@@ -90,6 +92,7 @@ export async function startRuntime(
   connection.start()
   return {
     config,
+    preferences: platform.preferences,
     store,
     connection,
     commands,

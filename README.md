@@ -19,8 +19,8 @@
 | `app/` | APP：Vite + React + TypeScript，three.js 三维场景，Capacitor 打包 |
 | `ros2_ws/src/` | ROS 2 Humble 包：接口定义包 `spatialview_msgs`、mock 服务端 `spatialview_mock` |
 | `deploy/` | 开发用服务端环境：rosbridge、mock、nginx |
-| `tools/` | 样例数据生成、文件校验、接口检查 |
-| `scripts/` | 本地检查脚本 |
+| `tools/` | 样例数据生成、文件校验、接口检查、8 小时测试 |
+| `scripts/` | 本地检查脚本、Android 打包脚本 |
 | `docs/` | 文档、图和静态原型 |
 
 ## 环境要求
@@ -30,6 +30,8 @@
 | Node.js | 24 LTS，见 `app/.nvmrc` | APP |
 | uv | 0.12 及以上 | Python 3.10 环境，会自动下载 Python 3.10 |
 | Docker | 带 compose 插件 | ROS 2 Humble 的构建和开发环境（阶段 3 起） |
+| JDK、Android SDK | JDK 21；SDK 的 platform 36 和 build-tools | 打包 Android APP，`ANDROID_HOME` 默认为 `~/Android/Sdk` |
+| Google Chrome | — | 8 小时测试（本机无头 Chrome） |
 | actionlint | 可选 | 本地检查 CI 工作流 |
 
 ## 常用命令
@@ -58,9 +60,26 @@ uv run python -m tools.interface_check     # 接口检查，用法见 tools/READ
 scripts/ros.sh colcon build
 scripts/ros.sh ros2 interface show spatialview_msgs/msg/SystemState
 
+# Android APP：debug 包开启 WebView 远程调试；release 包需要签名密钥
+scripts/build-apk.sh debug
+scripts/build-apk.sh release
+
 # 与 CI 相同的全部检查
 ./scripts/check.sh
 ```
+
+### Android 打包
+
+`scripts/build-apk.sh` 依次执行 `npm run build`、`npx cap sync android` 和 Gradle（架构设计 5.10），最后输出 APK 的位置、版本号和 SHA-256，交付时记录。release 包的签名密钥不放进仓库，用环境变量给出：
+
+| 环境变量 | 说明 |
+| --- | --- |
+| `SPATIALVIEW_KEYSTORE` | 密钥库文件的路径 |
+| `SPATIALVIEW_KEYSTORE_PASSWORD`、`SPATIALVIEW_KEY_ALIAS`、`SPATIALVIEW_KEY_PASSWORD` | 密钥库密码、密钥别名、密钥密码 |
+| `VITE_ENABLE_ENGINEERING` | 为 `true` 时启用工程入口（需求 10.3） |
+| `SPATIALVIEW_ENGINEERING_PASSWORD` | 工程入口的密码，启用工程入口时必须给出；产物中只有它的 SHA-256 |
+
+版本号写在 `app/package.json`，versionCode 由它算出。
 
 当前用户没有 Docker 权限时，在命令前加 `DOCKER="sudo docker"`，例如 `DOCKER="sudo docker" ./scripts/check.sh`。
 
