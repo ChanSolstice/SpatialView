@@ -20,7 +20,7 @@
 | `ros2_ws/src/` | ROS 2 Humble 包：接口定义包 `spatialview_msgs`、mock 服务端 `spatialview_mock` |
 | `deploy/` | 开发用服务端环境：rosbridge、mock、nginx |
 | `tools/` | 样例数据生成、文件校验、接口检查、8 小时测试 |
-| `scripts/` | 本地检查脚本、Android 打包脚本 |
+| `scripts/` | 本地检查脚本、Android 和网页版的打包脚本 |
 | `docs/` | 文档、图和静态原型 |
 
 ## 环境要求
@@ -64,6 +64,9 @@ scripts/ros.sh ros2 interface show spatialview_msgs/msg/SystemState
 scripts/build-apk.sh debug
 scripts/build-apk.sh release
 
+# 网页版：没有平板时在 Ubuntu 电脑上用 Chrome 测试服务端，压缩包输出到 delivery/
+scripts/build-web.sh
+
 # 与 CI 相同的全部检查
 ./scripts/check.sh
 ```
@@ -82,6 +85,12 @@ scripts/build-apk.sh release
 版本号写在 `app/package.json`，versionCode 由它算出。
 
 当前用户没有 Docker 权限时，在命令前加 `DOCKER="sudo docker"`，例如 `DOCKER="sudo docker" ./scripts/check.sh`。
+
+### 网页版打包
+
+网页版与 APK 中的页面相同，用于没有平板时在 Ubuntu 电脑上用 Chrome 测试服务端（架构设计 5.10）。`scripts/build-web.sh` 执行 `npm run build`，把页面和 `app/web/` 中的启动脚本、说明打成压缩包，默认输出到 `delivery/spatialview-web-<版本>.tar.gz`，最后输出 SHA-256，交付时记录。启用工程入口的环境变量与 Android 打包相同。
+
+启动脚本在本机 127.0.0.1 上提供页面，用 Chrome 或 Chromium 的应用窗口打开，用法见 [app/web/README.md](app/web/README.md)。
 
 ## 分支
 
