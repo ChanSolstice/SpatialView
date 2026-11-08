@@ -78,12 +78,29 @@ export const SCREEN_LINE_MATERIALS: readonly LineMaterial[] = [
 ]
 
 /**
- * 方向箭头：小圆锥，尖端沿 +Y。工艺段的箭头按实例着色，随进度变绿。几何体为间距 ARROW_SPACING 时的大小
- * （半径 9 毫米、长 26 毫米），其他间距按比例缩放，工件较小时调小间距，箭头也随之变小。
+ * 方向箭头：细长的小圆锥，尖端沿 +Y。大小与线宽一样以屏幕像素计：几何体的单位是像素（底面直径 10、长 16），
+ * 场景每次绘制前按相机换算成米（path.ts 的 fitArrows），缩放时在屏幕上的大小不变，放大工件时不会遮住工件。
+ * 半透明、不写深度；仍参与深度测试，被工件挡住的不显示。空行程的箭头小一号。
  */
-export const ARROW_GEOMETRY = new ConeGeometry(0.009, 0.026, 12)
-export const ARROW_SPACING = 0.16
+export const ARROW_GEOMETRY = new ConeGeometry(5, 16, 16)
+export const TRAVEL_ARROW_SCALE = 0.75
+
+/**
+ * 箭头取所在线段颜色的深色，在线上能看出箭头的形状，在浅灰的工件上也看得清：工艺段的箭头为深蓝，
+ * 随进度变为深绿（状态色 run、ok 的文字色）；空行程的箭头为深灰（--text-2）。工艺段的箭头按实例着色。
+ */
+export const ARROW_COLORS = { process: 0x1a56b8, progress: 0x16653a, travel: 0x4d5662 }
 export const ARROW_MATERIALS = {
-  process: new MeshBasicMaterial({ color: 0xffffff }),
-  travel: new MeshBasicMaterial({ color: PATH_COLORS.travel }),
+  process: new MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+  }),
+  travel: new MeshBasicMaterial({
+    color: ARROW_COLORS.travel,
+    transparent: true,
+    opacity: 0.8,
+    depthWrite: false,
+  }),
 }
