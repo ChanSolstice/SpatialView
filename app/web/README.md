@@ -24,7 +24,7 @@
 1. 把压缩包解压到家目录下的非隐藏目录中，例如：
 
    ```bash
-   tar -xzf spatialview-web-0.1.0.tar.gz -C ~
+   tar -xzf spatialview-web-0.1.1.tar.gz -C ~
    ```
 
    Snap 版 Chromium 只能访问家目录下的非隐藏目录，不要解压到 `/tmp`、`/opt` 或以 `.` 开头的目录中。
@@ -32,7 +32,7 @@
 2. 在终端中运行启动脚本：
 
    ```bash
-   cd ~/spatialview-web-0.1.0
+   cd ~/spatialview-web-0.1.1
    ./start.sh
    ```
 
@@ -46,6 +46,15 @@
 - `SPATIALVIEW_PORT`：页面端口，默认 8090，例如 `SPATIALVIEW_PORT=8091 ./start.sh`。换端口后，工程入口中保存的配置不再生效，需要重新设置。
 - `SPATIALVIEW_BROWSER`：浏览器命令。默认依次查找 `google-chrome`、`google-chrome-stable`、`chromium`、`chromium-browser`。
 - 其余参数原样传给浏览器，例如 `./start.sh --start-maximized`。
+
+## 换用新版本
+
+压缩包和解压目录的名称中有版本号，新版本解压后是一个新目录，不会覆盖旧版本。
+
+1. 关闭正在运行的 SpatialView 窗口。
+2. 按"启动"解压并运行新版本。
+3. 新目录中没有旧目录的 `profile/`。在工程入口中改过服务端地址的，需要重新设置（见"服务端地址"）。
+4. 新版本运行正常后，可以删除旧版本的目录。
 
 ## 服务端地址
 
