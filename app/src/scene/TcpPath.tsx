@@ -63,7 +63,7 @@ export function TcpPath() {
     invalidate()
   }, [invalidate, labels, plan, progress, visible])
 
-  // 箭头的大小以屏幕像素计，每次绘制前按相机调整（前端UI设计第 5 节）
+  // 箭头与屏幕平行、大小以屏幕像素计，每次绘制前按相机摆放（前端UI设计第 5 节）
   useFrame(({ camera, size }) => {
     if (visible) plan.fitArrows(camera as PerspectiveCamera, size.height)
   })
