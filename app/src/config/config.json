@@ -25,5 +25,6 @@
     "grid_size_m": 4.0,
     "grid_cell_m": 0.1
   },
-  "animation": { "speeds": [1, 5, 20] }
+  "animation": { "speeds": [1, 5, 20] },
+  "integration": { "assume_laser_connected": true }
 }

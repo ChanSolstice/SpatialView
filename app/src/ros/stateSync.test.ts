@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it } from 'vitest'
+import { availability } from '../domain/availability.ts'
 import { createAppStore, type AppStore } from '../store/store.ts'
 import { EMPTY_RESULT, makeState, stateForPhase } from '../testing/fixtures.ts'
-import { createStateSync, RESTART_NOTICE, type StateSync } from './stateSync.ts'
+import type { Alarm, SystemState } from './contract.ts'
+import {
+  assumeLaserConnected,
+  createStateSync,
+  RESTART_NOTICE,
+  type StateSync,
+} from './stateSync.ts'
 
 let store: AppStore
 let sync: StateSync
@@ -93,5 +100,61 @@ describe('stateSync（架构设计 5.4）', () => {
       sync(makeState({ seq: 20, last_result: result('r2') }), 'get')
       expect(store.getState().dialogs).toHaveLength(1)
     })
+  })
+})
+
+describe('把激光器视为已连接（需求 10.2 的 integration.assume_laser_connected）', () => {
+  const alarm = (code: string): Alarm => ({
+    code,
+    level: 'ERROR',
+    detail: '',
+    stamp: { sec: 1, nanosec: 0 },
+  })
+  const offline = (overrides: Partial<SystemState> = {}) =>
+    stateForPhase('PLAN_READY', {
+      laser_state: 'OFFLINE',
+      alarms: [alarm('LASER_OFFLINE'), alarm('CAMERA_ERROR')],
+      ...overrides,
+    })
+
+  it('激光器离线时按关闭处理，去掉激光器离线告警，其他告警保留', () => {
+    const accepted = createStateSync(store, { assumeLaserConnected: true })(offline(), 'topic')
+    expect(accepted?.laser_state).toBe('OFF')
+    const server = store.getState().server
+    expect(server?.laser_state).toBe('OFF')
+    expect(server?.alarms.map((a) => a.code)).toEqual(['CAMERA_ERROR'])
+  })
+
+  it('其他激光器状态不变；没有需要改的内容时返回原对象', () => {
+    for (const laser_state of ['OFF', 'ON', 'ERROR']) {
+      const state = makeState({ laser_state })
+      expect(assumeLaserConnected(state)).toBe(state)
+    }
+    expect(
+      assumeLaserConnected(makeState({ laser_state: 'ON', alarms: [alarm('LASER_OFFLINE')] })),
+    ).toMatchObject({ laser_state: 'ON', alarms: [] })
+  })
+
+  it('激光器离线时可以开始清洗，激光按钮为开启激光', () => {
+    const result = availability({
+      connected: true,
+      state: assumeLaserConnected(offline()),
+      interfaceOk: true,
+      inflight: null,
+      laserOffPending: false,
+      mode: 'browse',
+      selectionSize: 0,
+      model: 'ready',
+      plan: 'ready',
+      animationReady: true,
+    })
+    expect(result.buttons.main).toMatchObject({ action: 'start', enabled: true })
+    expect(result.buttons.laser).toMatchObject({ action: 'laserOn', enabled: true })
+  })
+
+  it('不开启时照常按服务端的状态显示', () => {
+    sync(offline(), 'topic')
+    expect(store.getState().server?.laser_state).toBe('OFFLINE')
+    expect(store.getState().server?.alarms).toHaveLength(2)
   })
 })
