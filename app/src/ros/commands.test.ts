@@ -48,12 +48,14 @@ const ok = (state: Partial<SystemState> & { phase: Phase }, seq = 11) => ({
   state: stateForPhase(state.phase, { ...state, seq }),
 })
 
+const GENERAL = { workpieceType: 'GENERAL' } as const
+
 beforeEach(() => vi.useFakeTimers())
 afterEach(() => vi.useRealTimers())
 
 describe('普通指令', () => {
   it.each([
-    ['scan', 'NO_MODEL', SERVICES.startScan, {}],
+    ['scan', 'NO_MODEL', SERVICES.startScan, { workpiece_type: 'REVOLVED' }],
     [
       'plan',
       'MODEL_READY',
@@ -72,9 +74,29 @@ describe('普通指令', () => {
     ['laserOn', 'PLAN_READY', SERVICES.setLaser, { on: true }],
   ] as const)('%s：请求与接口文档一致', async (key, phase, service, request) => {
     setup(phase)
-    void commands.run(key)
+    void commands.run(key, { workpieceType: 'REVOLVED' })
     expect(socket.calls).toEqual([
       { name: service.name, type: service.type, request, timeoutMs: timing.service_timeout_ms },
+    ])
+  })
+
+  it('开始扫描没有工件类型时不发送', async () => {
+    setup('NO_MODEL')
+    await commands.run('scan')
+    expect(socket.calls).toEqual([])
+    expect(s().inflight).toBeNull()
+  })
+
+  it('上电', async () => {
+    setup('PLAN_READY', { robot_state: 'DISABLED' })
+    void commands.run('powerOn')
+    expect(socket.calls).toEqual([
+      {
+        name: SERVICES.powerOn.name,
+        type: SERVICES.powerOn.type,
+        request: {},
+        timeoutMs: timing.service_timeout_ms,
+      },
     ])
   })
 
@@ -92,7 +114,7 @@ describe('普通指令', () => {
 
   it('发出时加在途锁；受理后应用回复中的状态并解锁', async () => {
     setup('NO_MODEL')
-    const done = commands.run('scan')
+    const done = commands.run('scan', GENERAL)
     expect(s().inflight).toBe('scan')
     socket.respond(SERVICES.startScan.name, ok({ phase: 'SCANNING' }))
     await done
@@ -121,7 +143,7 @@ describe('普通指令', () => {
 
   it('超时：提示服务端无响应并解锁', async () => {
     setup('NO_MODEL')
-    const done = commands.run('scan')
+    const done = commands.run('scan', GENERAL)
     await tick(timing.service_timeout_ms)
     await done
     expect(s().toast?.title).toBe(NO_RESPONSE_TEXT)
@@ -130,7 +152,7 @@ describe('普通指令', () => {
 
   it('rosbridge 返回调用失败：提示服务端无响应', async () => {
     setup('NO_MODEL')
-    const done = commands.run('scan')
+    const done = commands.run('scan', GENERAL)
     socket.fail(SERVICES.startScan.name, 'failed')
     await done
     expect(s().toast?.title).toBe(NO_RESPONSE_TEXT)
@@ -138,7 +160,7 @@ describe('普通指令', () => {
 
   it('不可用时不发送', async () => {
     setup('EXECUTING')
-    await commands.run('scan')
+    await commands.run('scan', GENERAL)
     expect(socket.calls).toEqual([])
     setup(
       'PLAN_READY',
@@ -166,7 +188,7 @@ describe('普通指令', () => {
 
   it('断线后到达的回复直接丢弃：不应用状态、不提示、不再改动在途锁（需求 7.4）', async () => {
     setup('NO_MODEL')
-    const done = commands.run('scan')
+    const done = commands.run('scan', GENERAL)
     // 断线：连接管理解除在途锁，epoch 加 1
     s().releaseCommand()
     connection.epoch += 1

@@ -113,6 +113,13 @@
   color: var(--surface);
 }
 
+/* 不可用：未选择工件类型，或上电的第二次确认出现后 1 秒内 */
+.dbtn:disabled {
+  border-color: var(--dis-bd);
+  background: var(--dis-bg);
+  color: var(--dis-fg);
+}
+
 .dbtn.danger {
   border-color: var(--danger);
   background: var(--danger);
@@ -152,4 +159,85 @@
 
 .dlg-sub .dlg-code {
   margin-top: 4px;
+}
+
+/* 开始清洗的设备异常：每项一行，排在最后一句之前 */
+.dlg-warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+}
+
+.dlg-warnings li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.5;
+}
+
+.dlg-warnings .ic {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 4px;
+  color: var(--pause-dot);
+}
+
+/* 工件类型：两个选项卡片左右并排，点卡片任意位置选中 */
+.dlg-choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  padding: 10px 30px 0;
+}
+
+.dlg-choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  height: 104px;
+  padding: 16px 18px;
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.dlg-choice.is-selected {
+  border: 2px solid var(--primary);
+  background: var(--primary-tint);
+}
+
+.dlg-choice-name {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dlg-choice-text {
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.dlg-choice .ic {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 22px;
+  height: 22px;
+  color: var(--primary);
+  stroke-width: 2.6;
+}
+
+.dlg-note {
+  padding: 12px 30px 0;
+  font-size: 16px;
 }

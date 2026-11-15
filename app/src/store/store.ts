@@ -8,7 +8,7 @@ import type { LoadedModel } from '../assets/model.ts'
 import type { LoadedPlan } from '../assets/path.ts'
 import type { LoadedRobot } from '../assets/robot.ts'
 import type { LocalAlarm } from '../domain/alarms.ts'
-import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
+import type { ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
 import type { SystemState } from '../ros/contract.ts'
@@ -32,7 +32,8 @@ export interface ConnState {
 }
 
 export type Dialog =
-  | { id: number; kind: 'confirm'; action: ConfirmAction; confirmation: Confirmation }
+  /** 文案在显示时按当前状态得出（需求 5.4 开始清洗的警告随状态更新）；step 2 为上电的第二次确认。 */
+  | { id: number; kind: 'confirm'; action: ConfirmAction; step?: 1 | 2 }
   | { id: number; kind: 'result'; notice: ResultNotice }
   | { id: number; kind: 'info'; title: string; text: string }
   /** 急停发送失败、激光关闭失败（前端UI设计 4.4）。 */

@@ -128,6 +128,7 @@ describe('需求 5.5 的结果提示框标题', () => {
     ['RECONSTRUCT', 'FAILED', 'RECONSTRUCT_ERROR'],
     ['PLAN', 'FAILED', 'NO_SOLUTION'],
     ['PLAN', 'SUCCEEDED', 'PLAN_PARTIAL'],
+    ['POWER_ON', 'FAILED', 'ROBOT_ESTOP'],
   ])('%s %s %s', (operation, result, reason) => {
     const notice = resultNotice({ ...EMPTY_RESULT, id: 'r', operation, result, code: reason })
     expect(titles).toContain(notice?.title)
@@ -141,8 +142,15 @@ describe('需求 5.5 的结果提示框标题', () => {
       '扫描失败',
       '重建失败',
       '规划失败',
+      '上电失败',
       '部分表面未能规划',
     ])
+  })
+
+  it('上电成功不弹提示框', () => {
+    expect(
+      resultNotice({ ...EMPTY_RESULT, id: 'r', operation: 'POWER_ON', result: 'SUCCEEDED' }),
+    ).toBeNull()
   })
 })
 
@@ -150,7 +158,12 @@ describe('需求 5.6 的机械臂提示', () => {
   const t = table(requirements, '5.6')
 
   it('标题、说明和按钮与需求一致', () => {
-    const notices = [ROBOT_NOTICES.softwareEstop, ROBOT_NOTICES.deviceEstop, ROBOT_NOTICES.disabled]
+    const notices = [
+      ROBOT_NOTICES.softwareEstop,
+      ROBOT_NOTICES.deviceEstop,
+      ROBOT_NOTICES.disabled,
+      ROBOT_NOTICES.starting,
+    ]
     expect(t.rows.map(([, title, text, button]) => ({ title, text, button }))).toEqual(
       notices.map((notice) => ({
         title: notice.title,

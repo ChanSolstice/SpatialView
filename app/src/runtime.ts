@@ -57,11 +57,9 @@ export async function startRuntime(
   { connect = connectRoslib, fetchFile, loadPlan, loadRobot }: RuntimeOptions = {},
 ): Promise<Runtime> {
   const config = await loadConfig(platform.preferences, devServerUrls())
-  const { server, timing, scene, robot, integration } = config.config
+  const { server, timing, scene, robot } = config.config
   const store = createAppStore()
-  const sync = createStateSync(store, {
-    assumeLaserConnected: integration.assume_laser_connected,
-  })
+  const sync = createStateSync(store)
   const connection = new ConnectionManager(
     { url: server.rosbridge_url, timing, connect },
     {

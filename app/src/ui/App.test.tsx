@@ -104,10 +104,35 @@ describe('已连接', () => {
     expect(screen.getByText('暂无模型，请开始扫描')).toBeTruthy()
   })
 
-  it('不需要确认的指令按下即发送；受理后按新状态显示进行中', async () => {
+  it('不需要确认的指令按下即发送', async () => {
+    const socket = await connect(stateForPhase('EXECUTING'))
+    fireEvent.click(button('main'))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(socket.calls.at(-1)?.request).toEqual({ command: 'PAUSE', plan_id: '' })
+  })
+
+  it('开始扫描先选择工件类型，不预选；确认后发送所选类型，受理后按新状态显示进行中', async () => {
     const socket = await connect(stateForPhase('NO_MODEL'))
     fireEvent.click(button('scan'))
+    const dialog = screen.getByRole('dialog', { name: '选择工件类型' })
+    const confirmButton = within(dialog).getByRole('button', { name: '开始扫描' })
+    const radios = within(dialog).getAllByRole('radio')
+    expect(radios.map((radio) => radio.textContent)).toEqual([
+      '旋转体可以由一个截面绕一根轴旋转 360° 形成的工件',
+      '通用其他工件',
+    ])
+    expect(radios.map((radio) => radio.getAttribute('aria-checked'))).toEqual(['false', 'false'])
+    expect(dialog.textContent).not.toContain('替换当前模型')
+    expect(confirmButton.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(confirmButton)
+    expect(socket.pendingNames).toEqual([])
+
+    fireEvent.click(radios[0] as HTMLElement)
+    expect(radios[0]?.getAttribute('aria-checked')).toBe('true')
+    fireEvent.click(confirmButton)
+    expect(screen.queryByRole('dialog')).toBeNull()
     expect(socket.pendingNames).toEqual([SERVICES.startScan.name])
+    expect(socket.calls.at(-1)?.request).toEqual({ workpiece_type: 'REVOLVED' })
     expect(button('scan').getAttribute('aria-busy')).toBe('true')
     await reply(socket, SERVICES.startScan.name, 'OK', stateForPhase('SCANNING', { progress: 42 }))
     expect(button('scan').textContent).toBe('正在扫描…')
@@ -137,15 +162,44 @@ describe('已连接', () => {
     expect(socket.calls.filter((c) => c.name !== SERVICES.getSystemState.name)).toEqual([])
   })
 
+  it('已有模型时，工件类型的对话框中加一行替换模型的提示', async () => {
+    await connect(stateForPhase('PLAN_READY'))
+    fireEvent.click(button('scan'))
+    expect(screen.getByRole('dialog', { name: '选择工件类型' }).textContent).toContain(
+      '扫描完成后将替换当前模型，并清除当前规划。',
+    )
+  })
+
   it('对话框打开期间操作变为不可用时自动关闭（需求 5.4）', async () => {
     const socket = await connect(stateForPhase('PLAN_READY'))
     fireEvent.click(button('main'))
     expect(screen.getByRole('dialog')).toBeTruthy()
-    await publish(
-      socket,
-      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', software_estop: true }),
-    )
+    await publish(socket, stateForPhase('EXECUTING'))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('设备异常时开始清洗仍可用，确认框列出警告并随状态更新；确认后照常发送（需求 5.4）', async () => {
+    const socket = await connect(
+      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', laser_state: 'OFFLINE' }),
+    )
+    expect(button('main').disabled).toBe(false)
+    fireEvent.click(button('main'))
+    const dialog = screen.getByRole('dialog', { name: '开始清洗' })
+    const items = () =>
+      within(dialog)
+        .queryAllByRole('listitem')
+        .map((li) => li.textContent)
+    expect(items()).toEqual([
+      '机械臂未就绪（急停），服务端可能拒绝开始清洗。',
+      '激光器未就绪（离线），本次清洗不出光，只运行轨迹。',
+    ])
+    await publish(socket, stateForPhase('PLAN_READY', { laser_state: 'OFFLINE' }))
+    expect(items()).toEqual(['激光器未就绪（离线），本次清洗不出光，只运行轨迹。'])
+    fireEvent.click(within(dialog).getByRole('button', { name: '开始清洗' }))
+    expect(socket.calls.at(-1)?.request).toEqual({
+      command: 'START',
+      plan_id: 'plan_20261015T081000',
+    })
   })
 
   it('指令被拒绝时显示短时提示，5 秒后消失', async () => {
@@ -384,7 +438,7 @@ describe('机械臂提示与复位急停（需求 5.6；需求 12.4 场景 6）'
   it('依次为未启动、设备急停、软件急停：只有软件急停有复位，确认后发送复位，提示消失', async () => {
     const socket = await connect(stateForPhase('PLAN_READY', { robot_state: 'DISABLED' }))
     expect(notice()?.textContent).toContain('机械臂未启动')
-    expect(notice()?.textContent).toContain('请在示教器上启动机械臂（上电并松开刹车）。')
+    expect(notice()?.textContent).toContain('确认机械臂周围无人后，点击按钮栏底部的"上电"。')
     expect(resetButton()).toBeNull()
 
     await publish(socket, stateForPhase('PLAN_READY', { robot_state: 'ESTOP' }))
@@ -406,6 +460,58 @@ describe('机械臂提示与复位急停（需求 5.6；需求 12.4 场景 6）'
     expect(resetButton()?.hasAttribute('disabled')).toBe(true)
     await reply(socket, SERVICES.resetEstop.name, 'OK', stateForPhase('PLAN_READY'))
     expect(notice()).toBeNull()
+  })
+
+  it('上电：两次确认，第二次的确认按钮 1 秒后才可以按；启动中显示进行中，成功后提示消失', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY', { robot_state: 'DISABLED' }))
+    expect(button('power').disabled).toBe(false)
+    expect(button('power').textContent).toBe('上电')
+
+    fireEvent.click(button('power'))
+    const first = screen.getByRole('dialog', { name: '上电' })
+    expect(first.textContent).toContain('机械臂将上电并松开刹车。请确认机械臂周围无人、无障碍物。')
+    fireEvent.click(within(first).getByRole('button', { name: '上电' }))
+    expect(socket.pendingNames).toEqual([])
+
+    const second = screen.getByRole('dialog', { name: '再次确认上电' })
+    const confirmButton = within(second).getByRole('button', { name: '确认上电' })
+    expect(confirmButton.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(confirmButton)
+    expect(socket.pendingNames).toEqual([])
+    await flush(999)
+    expect(confirmButton.hasAttribute('disabled')).toBe(true)
+    await flush(1)
+    expect(confirmButton.hasAttribute('disabled')).toBe(false)
+    fireEvent.click(confirmButton)
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(socket.pendingNames).toEqual([SERVICES.powerOn.name])
+    expect(button('power').getAttribute('aria-busy')).toBe('true')
+
+    await reply(
+      socket,
+      SERVICES.powerOn.name,
+      'OK',
+      stateForPhase('PLAN_READY', { robot_state: 'STARTING' }),
+    )
+    expect(status('robot')).toContain('启动中')
+    expect(notice()?.textContent).toContain('机械臂启动中')
+    expect(button('power').textContent).toBe('正在上电…')
+    expect(button('power').disabled).toBe(true)
+
+    await publish(socket, stateForPhase('PLAN_READY'))
+    expect(notice()).toBeNull()
+    expect(button('power').disabled).toBe(true)
+    expect(button('power').textContent).toBe('上电')
+  })
+
+  it('上电的任一次确认点取消都不发送', async () => {
+    const socket = await connect(stateForPhase('NO_MODEL', { robot_state: 'DISABLED' }))
+    fireEvent.click(button('power'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '上电' }))
+    await flush(1000)
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '取消' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(socket.calls.filter((c) => c.name !== SERVICES.getSystemState.name)).toEqual([])
   })
 
   it('复位后设备急停仍未解除时，改为显示设备急停的提示', async () => {

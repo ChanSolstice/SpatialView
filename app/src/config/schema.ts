@@ -33,7 +33,6 @@ export const configSchema = z
       grid_cell_m: z.number().positive(),
     }),
     animation: z.object({ speeds: z.array(z.number().positive()).min(1) }),
-    integration: z.object({ assume_laser_connected: z.boolean() }),
   })
   .refine((c) => c.scene.zoom_min_ratio < c.scene.zoom_max_ratio, {
     message: 'zoom_min_ratio 应小于 zoom_max_ratio',

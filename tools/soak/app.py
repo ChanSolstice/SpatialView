@@ -178,6 +178,9 @@ class AppDriver:
 
     def scan(self, baseline_alarms: str) -> dict:
         before = self.press("scan")
+        # 先选择工件类型（需求 5.4），选"通用"，"开始扫描"才可以按
+        self.wait_for("选择工件类型", lambda s: bool(s["dialog"]), timeout=15)
+        self.tap(".dlg .dlg-choice:last-of-type")
         self.answer_confirm("开始扫描", before)
         # mock 加速运行时，扫描中、重建中可能短于轮询间隔，直接看到模型就绪
         self.wait_for(

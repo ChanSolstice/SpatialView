@@ -81,30 +81,56 @@
   box-shadow: none;
 }
 
+/* 底部一行：左为"上电"，右为急停，各 125 × 100，间距 10；小字在下方，与急停右对齐 */
+.panel-bottom {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: auto;
+}
+
+/* "上电"：普通按钮的外观，图标在上、文字在下 */
+.btn.power {
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  height: 100px;
+  padding: 0 6px;
+  text-align: center;
+}
+
+.btn.power .ic {
+  width: 30px;
+  height: 30px;
+}
+
 /* 急停区：带白色衬底，叠放在所有遮罩之上 */
 .estop-area {
   position: relative;
   z-index: var(--z-safety);
-  margin: auto -10px -6px;
-  padding: 10px 10px 6px;
+  margin: -5px;
+  padding: 5px;
   border-radius: 20px;
   background: var(--surface);
 }
 
 .estop {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 4px;
   width: 100%;
   height: 100px;
+  padding-left: 6px;
   border: 0;
   border-radius: 16px;
   background: var(--danger);
   color: var(--surface);
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
-  letter-spacing: 8px;
+  letter-spacing: 6px;
   box-shadow:
     0 4px 0 var(--danger-dark),
     0 10px 20px rgba(217, 48, 37, 0.28);
@@ -116,14 +142,21 @@
 }
 
 .estop .ic {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
+  margin-right: 6px;
   stroke-width: 2.2;
 }
 
 .estop-caption {
-  margin-top: 10px;
+  position: relative;
+  z-index: var(--z-safety);
+  grid-column: 1 / -1;
+  margin: -4px -5px -6px;
+  padding: 4px 5px 6px;
+  border-radius: 0 0 12px 12px;
+  background: var(--surface);
   color: var(--text-3);
   font-size: 14px;
-  text-align: center;
+  text-align: right;
 }

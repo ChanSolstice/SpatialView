@@ -11,4 +11,4 @@ export type AssetStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 /** 占用在途锁的指令（架构设计 5.5）。关闭激光和急停不占用，不在其中。 */
 export type CommandKey =
-  'scan' | 'plan' | 'start' | 'pause' | 'resume' | 'stop' | 'laserOn' | 'resetEstop'
+  'scan' | 'plan' | 'start' | 'pause' | 'resume' | 'stop' | 'laserOn' | 'resetEstop' | 'powerOn'

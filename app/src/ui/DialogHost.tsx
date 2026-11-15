@@ -2,8 +2,10 @@
  * 对话框（需求 5.4、5.5；前端UI设计 4.4）。同一时间只显示一个，其余排队。
  * 确认框在对应操作不可用时由 store 监听自动关闭（store/listeners.ts）。
  */
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { confirmation } from '../domain/availability.ts'
 import type { ResultTone } from '../domain/results.ts'
+import type { WorkpieceType } from '../ros/contract.ts'
 import type { Dialog } from '../store/store.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import { useApp, useRuntime } from './runtimeContext.ts'
@@ -43,38 +45,93 @@ function Body({
   )
 }
 
-function DialogView({
-  dialog,
-  close,
-  confirm,
-}: {
-  dialog: Dialog
-  close(): void
-  confirm(): void
-}) {
-  switch (dialog.kind) {
-    case 'confirm': {
-      const { title, lines, confirmLabel } = dialog.confirmation
-      return (
-        <div className="dlg" role="dialog" aria-label={title}>
-          <Body icon="warn" tone="warn" title={title}>
-            {lines.map((line) => (
-              <div className="dlg-text" key={line}>
-                {line}
-              </div>
+type ConfirmDialog = Extract<Dialog, { kind: 'confirm' }>
+
+/**
+ * 确认框。文案按当前状态得出，开始清洗的设备异常警告随状态更新；开始扫描先选择工件类型；
+ * 上电确认后弹出第二次确认，第二次的确认按钮延迟才可以按（需求 5.4）。
+ */
+function ConfirmView({ dialog, close }: { dialog: ConfirmDialog; close(): void }) {
+  const { store, commands } = useRuntime()
+  const server = useApp((s) => s.server)
+  const selectionSize = useApp((s) => s.selection.size)
+  const view = confirmation(dialog.action, server, selectionSize, dialog.step)
+  const [choice, setChoice] = useState<WorkpieceType | null>(null)
+  const [ready, setReady] = useState(view.confirmDelayMs === 0)
+  useEffect(() => {
+    if (ready) return
+    const timer = setTimeout(() => setReady(true), view.confirmDelayMs)
+    return () => clearTimeout(timer)
+  }, [ready, view.confirmDelayMs])
+
+  const choosing = view.choices.length > 0
+  const canConfirm = ready && (!choosing || choice !== null)
+  const confirm = () => {
+    if (!canConfirm) return
+    close()
+    if (view.next) store.getState().pushDialog({ kind: 'confirm', action: dialog.action, step: 2 })
+    else void commands.run(dialog.action, choice !== null ? { workpieceType: choice } : {})
+  }
+  const lines = view.lines.map((line) => (
+    <div className={choosing ? 'dlg-text dlg-note' : 'dlg-text'} key={line}>
+      {line}
+    </div>
+  ))
+  return (
+    <div className="dlg" role="dialog" aria-label={view.title}>
+      <Body icon={choosing ? 'scan' : 'warn'} tone={choosing ? 'info' : 'warn'} title={view.title}>
+        {view.warnings.length > 0 && (
+          <ul className="dlg-warnings">
+            {view.warnings.map((warning) => (
+              <li key={warning}>
+                <Icon name="warn" />
+                {warning}
+              </li>
             ))}
-          </Body>
-          <div className="dlg-foot">
-            <button type="button" className="dbtn" onClick={close}>
-              取消
-            </button>
-            <button type="button" className="dbtn primary" onClick={confirm}>
-              {confirmLabel}
-            </button>
+          </ul>
+        )}
+        {!choosing && lines}
+      </Body>
+      {choosing && (
+        <>
+          <div className="dlg-choices" role="radiogroup" aria-label={view.title}>
+            {view.choices.map((option) => {
+              const selected = choice === option.value
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  className={selected ? 'dlg-choice is-selected' : 'dlg-choice'}
+                  onClick={() => setChoice(option.value)}
+                >
+                  <span className="dlg-choice-name">{option.name}</span>
+                  <span className="dlg-choice-text">{option.text}</span>
+                  {selected && <Icon name="check" />}
+                </button>
+              )
+            })}
           </div>
-        </div>
-      )
-    }
+          {lines}
+        </>
+      )}
+      <div className="dlg-foot">
+        <button type="button" className="dbtn" onClick={close}>
+          取消
+        </button>
+        <button type="button" className="dbtn primary" disabled={!canConfirm} onClick={confirm}>
+          {view.confirmLabel}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DialogView({ dialog, close }: { dialog: Dialog; close(): void }) {
+  switch (dialog.kind) {
+    case 'confirm':
+      return <ConfirmView key={dialog.id} dialog={dialog} close={close} />
     case 'result': {
       const { title, tone, reason, detail, code } = dialog.notice
       const [iconTone, icon] = RESULT_ICON[tone]
@@ -130,18 +187,14 @@ function DialogView({
 }
 
 export function DialogHost() {
-  const { store, commands } = useRuntime()
+  const { store } = useRuntime()
   const dialog = useApp((s) => s.dialogs[0])
   if (!dialog) return null
 
   const close = () => store.getState().closeDialog(dialog.id)
-  const confirm = () => {
-    close()
-    if (dialog.kind === 'confirm') void commands.run(dialog.action)
-  }
   return (
     <div className="scrim">
-      <DialogView dialog={dialog} close={close} confirm={confirm} />
+      <DialogView dialog={dialog} close={close} />
     </div>
   )
 }
