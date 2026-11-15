@@ -48,6 +48,21 @@ class TestStartScan:
         assert reply.code == Code.MODULE_UNAVAILABLE
         assert reply.detail == "重建模块未运行"
 
+    @pytest.mark.parametrize("workpiece_type", ["REVOLVED", "GENERAL", ""])
+    def test_workpiece_type(self, rig, workpiece_type):
+        assert rig.core.start_scan(workpiece_type).code == Code.OK
+        # 为空时按通用处理
+        assert rig.core.workpiece_type == (workpiece_type or "GENERAL")
+
+    def test_unknown_workpiece_type_checked_first(self, rig):
+        rig.send_driver(safety_mode="Fault")
+        reply = rig.core.start_scan("CUBE")
+        assert reply.code == Code.INVALID_ARGUMENT
+        codes_unchanged(rig, reply)
+        rig.send_driver(safety_mode="Normal")
+        rig.core.start_scan()
+        assert rig.core.start_scan("CUBE").code == Code.INVALID_ARGUMENT  # 先于阶段的检查
+
     @pytest.mark.parametrize("phase", [Phase.MODEL_READY, Phase.PLAN_READY])
     def test_rescan_allowed(self, rig, phase):
         rig.to_plan_ready() if phase == Phase.PLAN_READY else rig.to_model_ready()
@@ -98,11 +113,17 @@ class TestTaskControl:
         rig.send_driver(robot_mode="PowerOff")
         assert rig.core.task_control(Command.START, plan).code == Code.ROBOT_NOT_READY
         rig.send_driver(robot_mode="Running")
-        rig.core.inject("laser", {"state": "ERROR"})
-        assert rig.core.task_control(Command.START, plan).code == Code.LASER_NOT_READY
-        rig.core.inject("laser", {"state": "OK"})
         rig.core.inject("module", {"name": "execute", "available": False})
         assert rig.core.task_control(Command.START, plan).code == Code.MODULE_UNAVAILABLE
+
+    @pytest.mark.parametrize("health", ["ERROR", "OFFLINE"])
+    def test_start_and_resume_ignore_laser(self, rig, health):
+        rig.to_plan_ready()
+        rig.core.inject("laser", {"state": health})
+        assert rig.core.task_control(Command.START, rig.core.plan_id).code == Code.OK
+        assert rig.core.task_control(Command.PAUSE, "").code == Code.OK
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+        assert rig.core.phase == Phase.EXECUTING
 
     def test_only_start_checks_plan_id(self, rig):
         rig.to_executing()

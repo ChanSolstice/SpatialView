@@ -26,6 +26,7 @@ from tools.validate.report import Report
 PREFIX = "spatialview_msgs/srv/"
 SYSTEM_STATE = ("/spatialview/system_state", "spatialview_msgs/msg/SystemState")
 IDLE = ("NO_MODEL", "MODEL_READY", "PLAN_READY")
+SCAN_ARGS = {"workpiece_type": "GENERAL"}
 SERVICE_DEADLINE = 0.5  # 指令 Service 必须在 500 毫秒内返回（接口文档 13）
 CHECK_ID = "interface_check"
 
@@ -40,6 +41,7 @@ class Options:
     allow_motion: bool = False
     allow_laser: bool = False
     allow_estop: bool = False
+    allow_power_on: bool = False
     wait: float = 120.0  # 等待扫描、重建、规划、停止完成的最长时间，秒
     listen: float = 3.0  # 观察 SystemState 发布的时长，秒
     connect_timeout: float = 0.0  # 连接失败或服务端尚未就绪时重试的时长，秒
@@ -81,6 +83,8 @@ class Checker:
             self.check_topic()
             self.check_rejections(state)
             self.check_files(self.get_state() or state)
+            if self.options.allow_power_on:
+                self.check_power_on()
             if self.options.allow_laser:
                 self.check_laser()
             if self.options.allow_motion:
@@ -194,7 +198,14 @@ class Checker:
                 "TaskControl",
                 {"command": CHECK_ID.upper(), "plan_id": ""},
                 "INVALID_ARGUMENT",
-            )
+            ),
+            # 工件类型先于其他条件检查，任何阶段都返回 INVALID_ARGUMENT（6.3）
+            (
+                "start_scan",
+                "StartScan",
+                {"workpiece_type": CHECK_ID.upper()},
+                "INVALID_ARGUMENT",
+            ),
         ]
         if phase in ("MODEL_READY", "PLAN_READY"):
             cases.append(
@@ -254,11 +265,21 @@ class Checker:
                 ("task_control", "TaskControl", {"command": "STOP", "plan_id": ""}, "INVALID_STATE")
             )
         if phase not in IDLE:
-            cases.append(("start_scan", "StartScan", {}, "INVALID_STATE"))
+            cases.append(("start_scan", "StartScan", SCAN_ARGS, "INVALID_STATE"))
             cases.append(("set_laser", "SetLaser", {"on": True}, "INVALID_STATE"))
         elif robot != "READY":
-            cases.append(("start_scan", "StartScan", {}, "ROBOT_NOT_READY"))
+            cases.append(("start_scan", "StartScan", SCAN_ARGS, "ROBOT_NOT_READY"))
             cases.append(("set_laser", "SetLaser", {"on": True}, "ROBOT_NOT_READY"))
+        # 上电（6.9）：机械臂为未启动、阶段允许时会被受理，这里不调用
+        if phase in ("SCANNING", "EXECUTING", "PAUSED", "STOPPING") or robot in (
+            "READY",
+            "RUNNING",
+            "PAUSED",
+            "STARTING",
+        ):
+            cases.append(("power_on", "PowerOn", {}, "INVALID_STATE"))
+        elif robot != "DISABLED":
+            cases.append(("power_on", "PowerOn", {}, "ROBOT_NOT_READY"))
         if not state["software_estop"]:
             cases.append(("reset_estop", "ResetEstop", {}, "INVALID_STATE"))
         laser_off = "DEVICE_ERROR" if state["laser_state"] == "OFFLINE" else "OK"
@@ -334,6 +355,54 @@ class Checker:
 
     # ------------------------------------------------------------------ 需要显式开启的用例
 
+    def check_power_on(self) -> None:
+        state = self.get_state()
+        if state is None:
+            return
+        if state["robot_state"] != "DISABLED" or state["phase"] in (
+            "SCANNING",
+            "EXECUTING",
+            "PAUSED",
+            "STOPPING",
+        ):
+            self.report.error("POWER_ON", "上电用例需要机械臂为未启动，阶段不是扫描中或清洗任务中")
+            return
+        phase = state["phase"]
+        reply = self.command("power_on", "PowerOn", {}, ("OK",))
+        if reply is None or reply["code"] != "OK":
+            return
+        if reply["state"]["robot_state"] != "STARTING":
+            self.report.error(
+                "POWER_ON",
+                f"PowerOn 受理后回复中的 robot_state 应为 STARTING，"
+                f"实际为 {reply['state']['robot_state']}",
+            )
+        self.command("power_on", "PowerOn", {}, ("INVALID_STATE",))  # 正在启动：重复指令
+        state = self.wait_for(
+            lambda s: (
+                s["last_result"]["operation"] == "POWER_ON"
+                and s["last_result"]["id"] != reply["state"]["last_result"]["id"]
+            ),
+            self.options.wait,
+            "给出上电的结果",
+        )
+        if state is None:
+            return
+        self._expect_result(state, "POWER_ON", "SUCCEEDED")
+        if state["last_result"]["result"] != "SUCCEEDED":
+            return
+        if state["robot_state"] != "READY" and state["phase"] in IDLE:
+            self.report.error(
+                "POWER_ON", f"上电成功后机械臂应为 READY，实际为 {state['robot_state']}"
+            )
+        if state["phase"] != phase:
+            self.report.error("POWER_ON", f"上电改变了作业阶段：{phase} → {state['phase']}")
+        if state["laser_state"] == "ON":
+            self.report.error("POWER_ON", "上电不应开启激光")
+        self.report.info(
+            "POWER_ON", "上电正常：受理后为启动中，结束后为就绪，结果 POWER_ON SUCCEEDED"
+        )
+
     def check_laser(self) -> None:
         state = self.get_state()
         if state is None:
@@ -368,7 +437,7 @@ class Checker:
         ):
             self.report.error("MOTION", "扫描用例需要阶段空闲、机械臂就绪、相机正常")
             return
-        if self.command("start_scan", "StartScan", {}, ("OK",)) is None:
+        if self.command("start_scan", "StartScan", SCAN_ARGS, ("OK",)) is None:
             return
         state = self.wait_for(
             lambda s: s["phase"] == "MODEL_READY", self.options.wait, "完成扫描和重建"

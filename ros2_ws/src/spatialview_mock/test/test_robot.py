@@ -45,10 +45,7 @@ def test_fault_by_robot_mode():
     [
         "PowerOff",
         "PowerOffing",
-        "Booting",
-        "PowerOn",
         "Idle",
-        "BrakeReleasing",
         "ConfirmSafety",
         "BackDrive",
         "Maintaince",
@@ -56,6 +53,22 @@ def test_fault_by_robot_mode():
 )
 def test_disabled(mode):
     assert state(robot_mode=mode) == Robot.DISABLED
+
+
+@pytest.mark.parametrize("mode", ["Booting", "PowerOn", "BrakeReleasing"])
+def test_starting_by_robot_mode(mode):
+    # 包括在示教器上启动
+    assert state(robot_mode=mode) == Robot.STARTING
+    assert state(robot_mode=mode, estop=True) == Robot.ESTOP
+    assert state(robot_mode=mode, safety_mode="Fault") == Robot.FAULT
+
+
+@pytest.mark.parametrize("mode", ["PowerOff", "Idle", "Running"])
+def test_starting_while_powering(mode):
+    # 上电过程中模式停在 Idle 时不会变回 DISABLED（8.2）
+    assert derive_robot_state(True, mode, "Normal", False, Phase.NO_MODEL, True) == Robot.STARTING
+    assert derive_robot_state(False, mode, "Normal", False, Phase.NO_MODEL, True) == Robot.OFFLINE
+    assert derive_robot_state(True, mode, "Normal", True, Phase.NO_MODEL, True) == Robot.ESTOP
 
 
 def test_undefined_safety_is_disabled():

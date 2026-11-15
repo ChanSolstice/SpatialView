@@ -27,6 +27,8 @@ class FakeHooks:
         self.models: list[str] = []
         self.plans: list[tuple[str, str, list[str]]] = []
         self.clear_estop_result = True
+        self.power_on_result = True
+        self.power_on_calls = 0
         self.fail_export = False
 
     def publish(self, state: dict) -> None:
@@ -52,6 +54,10 @@ class FakeHooks:
 
     def clear_estop(self) -> bool:
         return self.clear_estop_result
+
+    def power_on(self) -> bool:
+        self.power_on_calls += 1
+        return self.power_on_result
 
 
 class Rig:

@@ -46,6 +46,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--allow-estop", action="store_true", help="调用机械臂急停 Service 并复位")
     parser.add_argument(
+        "--allow-power-on",
+        action="store_true",
+        help="机械臂未启动时从接口上电（机械臂会上电并松开刹车）；先于其他用例运行",
+    )
+    parser.add_argument(
         "--wait", type=float, default=defaults.wait, help="等待扫描、规划、停止完成的最长时间，秒"
     )
     parser.add_argument(
@@ -65,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
         allow_motion=args.allow_motion,
         allow_laser=args.allow_laser,
         allow_estop=args.allow_estop,
+        allow_power_on=args.allow_power_on,
         wait=args.wait,
         connect_timeout=args.connect_timeout,
     )

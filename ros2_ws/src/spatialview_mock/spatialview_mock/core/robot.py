@@ -8,14 +8,31 @@ OFFLINE_ROBOT_MODES = {"NoController", "Disconnected"}
 ESTOP_SAFETY_MODES = {"RobotEmergencyStop", "SystemEmergencyStop"}
 FAULT_SAFETY_MODES = {"Fault", "Violation", "ProtectiveStop", "SafeguardStop", "Recovery"}
 MOVABLE_SAFETY_MODES = {"Normal", "ReducedMode"}
+STARTING_ROBOT_MODES = {"Booting", "PowerOn", "BrakeReleasing"}
+# PowerOn 可以启动的机械臂模式：未上电，或已上电但刹车未松开（6.9）
+STARTABLE_ROBOT_MODES = {"PowerOff", "Idle"}
 RUNNING_PHASES = {Phase.SCANNING, Phase.EXECUTING, Phase.STOPPING}
+# 上电过程中机械臂模式的先后；退回靠前的模式说明上电或松开刹车失败
+POWER_ON_RANK = {
+    "PowerOff": 0,
+    "Booting": 1,
+    "PowerOn": 1,
+    "Idle": 2,
+    "BrakeReleasing": 3,
+    "Running": 4,
+}
 
 # 机械臂可以接受运动指令的三种状态
 MOVABLE_ROBOT_STATES = {Robot.READY, Robot.RUNNING, Robot.PAUSED}
 
 
 def derive_robot_state(
-    connected: bool, robot_mode: str, safety_mode: str, software_estop: bool, phase: str
+    connected: bool,
+    robot_mode: str,
+    safety_mode: str,
+    software_estop: bool,
+    phase: str,
+    powering: bool = False,
 ) -> str:
     """按接口文档 8.2 的表格，同时满足多项时取靠前的一项。"""
     if not connected or robot_mode in OFFLINE_ROBOT_MODES:
@@ -24,6 +41,8 @@ def derive_robot_state(
         return Robot.ESTOP
     if safety_mode in FAULT_SAFETY_MODES or robot_mode == "Error":
         return Robot.FAULT
+    if powering or robot_mode in STARTING_ROBOT_MODES:
+        return Robot.STARTING
     if robot_mode != "Running" or safety_mode not in MOVABLE_SAFETY_MODES:
         return Robot.DISABLED
     if phase in RUNNING_PHASES:
@@ -43,7 +62,7 @@ def fault_code(safety_mode: str) -> str:
 
 
 def robot_alarm_code(robot_state: str, safety_mode: str) -> str | None:
-    """当前机械臂状态对应的告警码；急停、未启动和正常状态没有告警（7.3）。"""
+    """当前机械臂状态对应的告警码；急停、未启动、启动中和正常状态没有告警（7.3）。"""
     if robot_state == Robot.FAULT:
         return fault_code(safety_mode)
     if robot_state == Robot.OFFLINE:
@@ -56,5 +75,6 @@ def robot_reason_code(robot_state: str, safety_mode: str) -> str:
     return {
         Robot.ESTOP: Code.ROBOT_ESTOP,
         Robot.DISABLED: Code.ROBOT_DISABLED,
+        Robot.STARTING: Code.ROBOT_DISABLED,
         Robot.OFFLINE: Code.ROBOT_OFFLINE,
     }.get(robot_state) or fault_code(safety_mode)

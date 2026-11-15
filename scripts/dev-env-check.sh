@@ -33,6 +33,14 @@ if ! uv run python -m tools.interface_check --rosbridge ws://localhost:19090 --h
   "${DC[@]}" logs --no-color --tail 40
   exit 1
 fi
+# 上电用例（接口文档 6.9）：先用故障注入让机械臂断电，再从接口上电
+"${DC[@]}" exec -T mock bash -c 'source /opt/ros/humble/setup.bash && source /ws/ros2_ws/install/setup.bash &&
+  ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: robot_power_off}"' >/dev/null
+if ! uv run python -m tools.interface_check --rosbridge ws://localhost:19090 --http http://localhost:18080 \
+  --allow-power-on; then
+  "${DC[@]}" logs --no-color --tail 40
+  exit 1
+fi
 if ! (cd app && SPATIALVIEW_CONTRACT_ROSBRIDGE=ws://localhost:19090 npm run --silent test:contract); then
   "${DC[@]}" logs --no-color --tail 40
   exit 1

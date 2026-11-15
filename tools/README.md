@@ -54,6 +54,7 @@ uv run python -m tools.interface_check --rosbridge ws://<服务端主机>:9090 -
 | --- | --- |
 | `--allow-motion` | 扫描 → 重建 → 规划 → 开始 → 暂停 → 继续 → 停止，检查各阶段、结果和导出的文件。机械臂会运动 |
 | `--allow-laser` | 开启、关闭激光；联锁不满足时报告服务端给出的原因。激光会开启 |
+| `--allow-power-on` | 机械臂未启动时从接口上电：受理后为启动中，重复上电被拒绝，结束后为就绪，结果为 POWER_ON SUCCEEDED。机械臂会上电并松开刹车；先于其他用例运行 |
 | `--allow-estop` | 调用机械臂急停 Service，检查急停和软件急停锁存，再复位；与 `--allow-motion` 同时给出时在执行中急停 |
 
 | 其他参数 | 说明 |

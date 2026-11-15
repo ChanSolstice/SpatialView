@@ -96,7 +96,7 @@ wait_for /robot_driver/emergency_stop
 eventually robot_state READY
 
 echo "接口文档 15.2 的命令"
-check "system_state 的接口版本为 1.0" state_is interface_version 1.0
+check "system_state 的接口版本为 1.1" state_is interface_version 1.1
 hz=$(timeout 6 ros2 topic hz /spatialview/system_state 2>/dev/null | grep -m1 -o 'average rate: [0-9.]*' | grep -o '[0-9.]*$' || true)
 check "system_state 定时发布（实测 ${hz:-无} 次/秒）" awk -v r="${hz:-0}" 'BEGIN { exit !(r >= 1.6 && r <= 3.0) }'
 check "get_system_state 返回无模型" has "$(call /spatialview/get_system_state spatialview_msgs/srv/GetSystemState)" "phase='NO_MODEL'"
@@ -104,10 +104,12 @@ check "start_plan 在无模型时拒绝" has "$(call /spatialview/start_plan spa
 check "task_control PAUSE 在无任务时拒绝" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'PAUSE', plan_id: ''}")" "code='INVALID_STATE'"
 # YAML 中不加引号的 on 会被解析为布尔值 true，键名必须加引号
 check "set_laser 关闭总是受理" has "$(call /spatialview/set_laser spatialview_msgs/srv/SetLaser "{'on': false}")" "code='OK'"
+check "power_on 在机械臂已就绪时拒绝" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='INVALID_STATE'"
+check "start_scan 拒绝未知的工件类型" has "$(call /spatialview/start_scan spatialview_msgs/srv/StartScan "{workpiece_type: 'CUBE'}")" "code='INVALID_ARGUMENT'"
 check "reset_estop 在没有锁存时拒绝" has "$(call /spatialview/reset_estop spatialview_msgs/srv/ResetEstop)" "code='INVALID_STATE'"
 
 echo "扫描、规划、执行"
-check "start_scan 受理" has "$(call /spatialview/start_scan spatialview_msgs/srv/StartScan)" "code='OK'"
+check "start_scan 受理（旋转体）" has "$(call /spatialview/start_scan spatialview_msgs/srv/StartScan "{workpiece_type: 'REVOLVED'}")" "code='OK'"
 check "重建完成后为模型就绪" eventually phase MODEL_READY
 model=$(state model_id)
 check "模型文件已导出（$model）" test -f "$FILES/models/$model.glb"
@@ -115,6 +117,20 @@ check "start_plan 受理" has "$(call /spatialview/start_plan spatialview_msgs/s
 check "规划完成后为规划就绪" eventually phase PLAN_READY
 plan=$(state plan_id)
 check "规划文件已导出（$plan）" test -f "$FILES/plans/$plan.json"
+
+echo "激光器不可用时的清洗（接口文档 6.5）"
+# 样例的清洗在 10 倍速下只有几秒，这一段改回原速
+call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'speed', args: '{\"factor\": 1}'}" >/dev/null
+check "激光器离线" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'laser', args: '{\"state\": \"OFFLINE\"}'}")" "ok=True"
+check "激光器离线时开始清洗受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'START', plan_id: '$plan'}")" "code='OK'"
+check "激光器恢复" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'laser', args: '{\"state\": \"OK\"}'}")" "ok=True"
+check "任务继续执行" state_is phase EXECUTING
+check "整次不出光" state_is laser_state OFF
+check "停止受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'STOP', plan_id: ''}")" "code='OK'"
+check "停止后回到规划就绪" eventually phase PLAN_READY
+call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'speed', args: '{\"factor\": 10}'}" >/dev/null
+
+echo "清洗"
 check "开始清洗受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'START', plan_id: '$plan'}")" "code='OK'"
 check "清洗中机械臂为运行中" eventually robot_state RUNNING
 
@@ -141,6 +157,33 @@ check "复位后为就绪" eventually robot_state READY
 echo "故障注入"
 check "机械臂断电" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'robot_power_off', args: ''}")" "ok=True"
 check "机械臂状态为未启动" eventually robot_state DISABLED
+
+echo "上电（接口文档 6.9）"
+last_result() { ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null; }
+result_has() {
+  for _ in $(seq 1 30); do
+    if has "$(last_result)" "$1"; then return 0; fi
+    sleep 0.3
+  done
+  return 1
+}
+check "power_on 受理，回复中为启动中" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='OK'.*robot_state='STARTING'"
+check "上电期间再次上电被拒绝" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='INVALID_STATE'"
+check "上电完成后为就绪" eventually robot_state READY
+check "结果为 POWER_ON SUCCEEDED" result_has "result: SUCCEEDED"
+call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'robot_power_off', args: ''}" >/dev/null
+eventually robot_state DISABLED
+check "注入上电失败" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'robot_power_on_fail', args: '{\"detail\": \"关节 3 刹车未松开\"}'}")" "ok=True"
+check "power_on 受理" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='OK'"
+check "松开刹车失败，原因 DEVICE_ERROR" result_has "code: DEVICE_ERROR"
+check "失败后回到未启动" eventually robot_state DISABLED
+check "power_on 受理" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='OK'"
+check "上电过程中急停" has "$(call /robot_driver/emergency_stop std_srvs/srv/Trigger)" "success=True"
+check "上电失败，原因 ROBOT_ESTOP" result_has "code: ROBOT_ESTOP"
+check "复位受理" has "$(call /spatialview/reset_estop spatialview_msgs/srv/ResetEstop)" "code='OK'"
+check "复位后为未启动" eventually robot_state DISABLED
+check "power_on 受理" has "$(call /spatialview/power_on spatialview_msgs/srv/PowerOn)" "code='OK'"
+check "再次上电后为就绪" eventually robot_state READY
 
 if [ "$failures" -gt 0 ]; then
   echo "自测失败：$failures 项。日志：$WORK/server.log、$WORK/driver.log"

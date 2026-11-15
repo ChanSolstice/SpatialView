@@ -150,3 +150,48 @@ class TestLaser:
         rig.core.on_client_count(0)
         assert rig.core.phase == Phase.EXECUTING
         assert rig.state["laser_state"] == Laser.ON
+
+
+class TestNoLightTask:
+    """开始时激光器异常或离线的任务整次不出光（6.5、8.5、8.6）。"""
+
+    @pytest.mark.parametrize("health, laser", [("ERROR", Laser.ERROR), ("OFFLINE", Laser.OFFLINE)])
+    def test_runs_without_light_even_after_laser_recovers(self, rig, health, laser):
+        rig.to_plan_ready()
+        rig.core.inject("laser", {"state": health})
+        assert rig.core.task_control(Command.START, rig.core.plan_id).code == Code.OK
+        rig.run(5.0)  # 工艺段内
+        assert rig.core.phase == Phase.EXECUTING
+        assert rig.state["laser_state"] == laser
+        rig.core.inject("laser", {"state": "OK"})
+        rig.run(1.0)
+        assert rig.state["laser_state"] == Laser.OFF  # 中途恢复也不开启
+        rig.core.task_control(Command.PAUSE, "")
+        rig.core.task_control(Command.RESUME, "")
+        rig.run(1.0)
+        assert rig.state["laser_state"] == Laser.OFF  # 暂停后继续仍不出光
+        rig.core.inject("laser", {"state": "ERROR"})  # 激光器的状态变化不影响任务
+        assert rig.core.phase == Phase.EXECUTING
+        rig.run(100.0)
+        assert last(rig) == ("TASK", "SUCCEEDED", "")
+
+    def test_next_task_is_normal(self, rig):
+        rig.to_plan_ready()
+        rig.core.inject("laser", {"state": "OFFLINE"})
+        rig.core.task_control(Command.START, rig.core.plan_id)
+        rig.core.task_control(Command.STOP, "")
+        rig.run(2.0)
+        assert rig.core.phase == Phase.PLAN_READY
+        rig.core.inject("laser", {"state": "OK"})
+        rig.core.task_control(Command.START, rig.core.plan_id)
+        rig.run(5.0)
+        assert rig.state["laser_state"] == Laser.ON
+        rig.core.inject("laser", {"state": "ERROR"})  # 正常任务仍按 8.5 中断
+        assert last(rig) == ("TASK", "INTERRUPTED", Code.LASER_ERROR)
+
+    def test_robot_fault_still_interrupts(self, rig):
+        rig.to_plan_ready()
+        rig.core.inject("laser", {"state": "OFFLINE"})
+        rig.core.task_control(Command.START, rig.core.plan_id)
+        rig.send_driver(safety_mode="Fault")
+        assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_FAULT)

@@ -113,6 +113,10 @@ describe.skipIf(!url)('接口约定：对开发环境中的 mock 服务端', () 
     expect(response.state.interface_version).toBe(INTERFACE_VERSION)
   })
 
+  it('PowerOn：机械臂已就绪时返回 INVALID_STATE', async () => {
+    expect((await call(SERVICES.powerOn)).code).toBe('INVALID_STATE')
+  })
+
   it('SetLaser：开启后关闭', async () => {
     expect((await accepted(SERVICES.setLaser, { on: true })).laser_state).toBe('ON')
     expect((await accepted(SERVICES.setLaser, { on: false })).laser_state).toBe('OFF')
@@ -120,7 +124,12 @@ describe.skipIf(!url)('接口约定：对开发环境中的 mock 服务端', () 
 
   it('StartScan：扫描、重建后得到新模型', async () => {
     const before = latest?.model_id
-    expect((await accepted(SERVICES.startScan)).phase).toBe('SCANNING')
+    expect((await call(SERVICES.startScan, { workpiece_type: 'CUBE' })).code).toBe(
+      'INVALID_ARGUMENT',
+    )
+    expect((await accepted(SERVICES.startScan, { workpiece_type: 'REVOLVED' })).phase).toBe(
+      'SCANNING',
+    )
     const state = await until((s) => s.phase === 'MODEL_READY', '模型就绪')
     expect(state.model_id).not.toBe(before)
     expect(state.model_url).not.toBe('')
