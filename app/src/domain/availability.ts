@@ -111,7 +111,13 @@ export const LABELS = {
 } as const
 
 /** 规则 6：这些机械臂状态下不能开始扫描、开始清洗、继续、开启激光。 */
-const ROBOT_NOT_READY: ReadonlySet<string> = new Set(['FAULT', 'ESTOP', 'DISABLED', 'OFFLINE'])
+const ROBOT_NOT_READY: ReadonlySet<string> = new Set([
+  'FAULT',
+  'ESTOP',
+  'DISABLED',
+  'STARTING',
+  'OFFLINE',
+])
 /** 规则 6：相机、激光器为这些状态时未就绪。 */
 const DEVICE_NOT_READY: ReadonlySet<string> = new Set(['ERROR', 'OFFLINE'])
 /** 急停引起的中断尚未完成的阶段，不能复位急停（需求 5.6）。 */

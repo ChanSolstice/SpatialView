@@ -10,7 +10,7 @@ from tools.interface_check.state import validate_state
 CONTRACT = load()
 
 VALID = {
-    "interface_version": "1.0",
+    "interface_version": "1.1",
     "session_id": "9c1e6f0a",
     "seq": 1024,
     "stamp": {"sec": 1791790512, "nanosec": 0},
@@ -46,7 +46,7 @@ VALID = {
 
 
 def test_contract_from_msgs():
-    assert CONTRACT.interface_version == "1.0"
+    assert CONTRACT.interface_version == "1.1"
     assert "DISABLED" in CONTRACT.robot_states
     assert len(CONTRACT.status_codes) == 33
     assert ("bool", "software_estop") in CONTRACT.system_state

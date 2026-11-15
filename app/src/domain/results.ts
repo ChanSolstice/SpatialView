@@ -22,6 +22,7 @@ const FAILED_TITLE = new Map([
   ['RECONSTRUCT', '重建失败'],
   ['PLAN', '规划失败'],
   ['TASK', '清洗失败'],
+  ['POWER_ON', '上电失败'],
 ])
 
 const INTERRUPTED_TITLE = new Map([

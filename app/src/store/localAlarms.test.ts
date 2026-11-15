@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildPath } from '../assets/path.ts'
 import { parsePlan } from '../assets/plan.ts'
 import { wrapRobot } from '../assets/robot.ts'
+import { INTERFACE_VERSION } from '../ros/contract.ts'
 import { stateForPhase, STATE_IDS } from '../testing/fixtures.ts'
 import { testPlanJson } from '../testing/plan.ts'
 import { testRobotModel } from '../testing/robot.ts'
@@ -61,7 +62,7 @@ describe('本地告警（需求 7.4、9.1）', () => {
     })
     expect(store.getState().localAlarms[0]).toMatchObject({
       code: 'APP_INTERFACE_MISMATCH',
-      detail: '服务端接口版本 2.0，APP 期望 1.0',
+      detail: `服务端接口版本 2.0，APP 期望 ${INTERFACE_VERSION}`,
     })
   })
 

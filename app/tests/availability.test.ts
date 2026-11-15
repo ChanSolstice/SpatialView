@@ -227,9 +227,9 @@ describe('规则 5：接口版本不匹配', () => {
 })
 
 describe('规则 6：设备未就绪', () => {
-  const ROBOT_BLOCKING = ['FAULT', 'ESTOP', 'DISABLED', 'OFFLINE']
+  const ROBOT_BLOCKING = ['FAULT', 'ESTOP', 'DISABLED', 'STARTING', 'OFFLINE']
 
-  it('只有这四种机械臂状态算未就绪', () => {
+  it('只有这五种机械臂状态算未就绪', () => {
     for (const robot_state of ROBOT_STATES) {
       const blocking = ROBOT_BLOCKING.includes(robot_state)
       expect(at('PLAN_READY', { robot_state }).buttons.scan.enabled, robot_state).toBe(!blocking)

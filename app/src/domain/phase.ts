@@ -34,6 +34,7 @@ export const ROBOT_VIEW: Record<RobotState, StatusView> = {
   FAULT: { text: '故障', tone: 'fault' },
   ESTOP: { text: '急停', tone: 'crit' },
   DISABLED: { text: '未启动', tone: 'off' },
+  STARTING: { text: '启动中', tone: 'pause' },
   OFFLINE: { text: '离线', tone: 'gray' },
 }
 

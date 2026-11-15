@@ -1,7 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ESTOP_SERVICE, SERVICES, SYSTEM_STATE_TOPIC, type SystemState } from '../ros/contract.ts'
+import {
+  ESTOP_SERVICE,
+  INTERFACE_VERSION,
+  SERVICES,
+  SYSTEM_STATE_TOPIC,
+  type SystemState,
+} from '../ros/contract.ts'
 import type { Runtime } from '../runtime.ts'
 import type { FakeRosbridge, FakeSocket } from '../testing/fakeRos.ts'
 import { stateForPhase } from '../testing/fixtures.ts'
@@ -553,7 +559,7 @@ describe('接口版本不匹配（需求 7.7；需求 12.4 场景 3）', () => {
     fireEvent.click(screen.getByTestId('sb-alarm'))
     const panel = screen.getByTestId('alarm-panel')
     expect(panel.textContent).toContain('接口版本不匹配')
-    expect(panel.textContent).toContain('服务端接口版本 2.0，APP 期望 1.0')
+    expect(panel.textContent).toContain(`服务端接口版本 2.0，APP 期望 ${INTERFACE_VERSION}`)
 
     await publish(socket, stateForPhase('PLAN_READY'))
     expect(status('alarm')).toContain('无告警')

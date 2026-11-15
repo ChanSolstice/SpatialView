@@ -2,7 +2,7 @@
 # 服务端每 500 毫秒发布一次，除 progress、exec_time 外任何字段变化时 200 毫秒内补发（接口文档 5.4）。
 
 # 接口版本："主版本.次版本"（接口文档第 3 节）
-string INTERFACE_VERSION="1.0"
+string INTERFACE_VERSION="1.1"
 
 # robot_state 的取值（接口文档 8.2）
 string ROBOT_READY="READY"
@@ -11,6 +11,7 @@ string ROBOT_PAUSED="PAUSED"
 string ROBOT_FAULT="FAULT"
 string ROBOT_ESTOP="ESTOP"
 string ROBOT_DISABLED="DISABLED"
+string ROBOT_STARTING="STARTING"
 string ROBOT_OFFLINE="OFFLINE"
 
 # camera_state 的取值（接口文档 8.3）
@@ -35,12 +36,12 @@ string PHASE_EXECUTING="EXECUTING"
 string PHASE_PAUSED="PAUSED"
 string PHASE_STOPPING="STOPPING"
 
-string interface_version        # 接口版本，本文档为 "1.0"
+string interface_version        # 接口版本，本文档为 "1.1"
 string session_id               # 服务端每次启动生成一个新值
 uint64 seq                      # 本会话内每发布一次加 1，从 1 开始
 builtin_interfaces/Time stamp   # 发布时间
 
-string robot_state              # 机械臂状态：READY RUNNING PAUSED FAULT ESTOP DISABLED OFFLINE（8.2）
+string robot_state              # 机械臂状态：READY RUNNING PAUSED FAULT ESTOP DISABLED STARTING OFFLINE（8.2）
 bool software_estop             # 软件急停已触发、尚未复位（6.7、6.8）；为 true 时 robot_state 为 ESTOP
 string camera_state             # 相机状态：OK ERROR OFFLINE（8.3）
 string laser_state              # 激光器状态：OFF ON ERROR OFFLINE（8.3）

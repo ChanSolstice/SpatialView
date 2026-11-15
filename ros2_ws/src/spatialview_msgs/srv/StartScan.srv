@@ -1,4 +1,9 @@
 # 开始扫描（接口文档 6.3）。扫描成功后自动重建和分割，不需要新的指令。
+
+string WORKPIECE_TYPE_REVOLVED="REVOLVED"
+string WORKPIECE_TYPE_GENERAL="GENERAL"
+
+string workpiece_type           # 工件类型：REVOLVED 旋转体，GENERAL 通用；为空时按 GENERAL 处理
 ---
 string code                     # 状态码："OK" 表示受理，其他值为拒绝原因（接口文档 7.1）
 string detail                   # 补充说明，可为空（7.4）
