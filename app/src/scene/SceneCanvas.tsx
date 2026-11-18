@@ -5,7 +5,7 @@
 import { Bvh, OrbitControls } from '@react-three/drei'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, type ComponentRef } from 'react'
-import { Vector3, type PerspectiveCamera, type Sphere } from 'three'
+import { Vector3, type Object3D, type PerspectiveCamera, type Sphere } from 'three'
 import { measure, MODEL_DOWNLOADED_MARK } from '../assets/loader.ts'
 import type { LoadedModel } from '../assets/model.ts'
 import { SCREEN_LINE_MATERIALS } from '../assets/materials.ts'
@@ -97,7 +97,22 @@ function CameraRig() {
   )
 }
 
-/** 工件：材质随场景模式和选择切换；选面模式中点选表面，按下到抬起移动超过阈值视为拖动（需求 6.2、6.4）。 */
+/**
+ * 有能悬停的指针（鼠标）时才预览鼠标指向的表面（需求 6.4）。平板触屏没有悬停，不注册移动事件，
+ * 单指拖动旋转时也就不为此拾取。
+ */
+const HOVER_CAPABLE =
+  typeof window.matchMedia === 'function' && window.matchMedia('(any-hover: hover)').matches
+
+function surfaceIdOf(object: Object3D): string | null {
+  const id: unknown = object.userData.surface_id
+  return typeof id === 'string' ? id : null
+}
+
+/**
+ * 工件：材质随场景模式和选择切换；选面模式中点选表面，按下到抬起移动超过阈值视为拖动（需求 6.2、6.4）。
+ * 使用鼠标时预览指向的表面：只替换材质并请求重绘，不经过 React 状态，移动鼠标不重新渲染组件。
+ */
 function Workpiece() {
   const { store, config } = useRuntime()
   const model = useApp((s) => s.model.data)
@@ -107,10 +122,16 @@ function Workpiece() {
   const invalidate = useThree((s) => s.invalidate)
   const { workpiece } = sceneContent(phase, mode)
   const threshold = config.config.scene.tap_threshold_px
+  const hovered = useRef<string | null>(null)
+
+  // 换模型、切换场景模式时清除悬停；先于下面应用材质的 effect 执行
+  useEffect(() => {
+    hovered.current = null
+  }, [model, workpiece])
 
   useEffect(() => {
     if (!model) return
-    applyAppearance(model, workpiece, selection)
+    applyAppearance(model, workpiece, selection, hovered.current)
     invalidate()
   }, [invalidate, model, selection, workpiece])
 
@@ -124,17 +145,37 @@ function Workpiece() {
   }, [model])
 
   if (!model || workpiece === 'none') return null
+  const selecting = workpiece === 'selectable'
   const pick = (event: ThreeEvent<MouseEvent>) => {
     if (event.delta > threshold) return
     event.stopPropagation()
-    const id: unknown = event.object.userData.surface_id
-    if (typeof id === 'string') store.getState().toggleSurface(id)
+    const id = surfaceIdOf(event.object)
+    if (id !== null) store.getState().toggleSurface(id)
   }
+  const hover = (id: string | null) => {
+    if (id === hovered.current) return
+    hovered.current = id
+    applyAppearance(model, workpiece, selection, id)
+    invalidate()
+  }
+  const move = (event: ThreeEvent<PointerEvent>) => {
+    if (event.pointerType !== 'mouse') return
+    // 只处理最近的命中；按住鼠标拖动（旋转视角）时不预览
+    event.stopPropagation()
+    const id = event.buttons === 0 ? surfaceIdOf(event.object) : null
+    hover(id !== null && model.surfaces.get(id)?.selectable === true ? id : null)
+  }
+  const hoverable = selecting && HOVER_CAPABLE
   return (
     <>
       {/* 模型变化时重新挂载，为新模型的表面建立拾取加速结构 */}
       <Bvh firstHitOnly key={model.id}>
-        <primitive object={model.group} onClick={workpiece === 'selectable' ? pick : undefined} />
+        <primitive
+          object={model.group}
+          onClick={selecting ? pick : undefined}
+          onPointerMove={hoverable ? move : undefined}
+          onPointerOut={hoverable ? () => hover(null) : undefined}
+        />
       </Bvh>
       <primitive object={model.boundaries} />
     </>

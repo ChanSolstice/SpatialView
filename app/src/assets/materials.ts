@@ -33,6 +33,9 @@ function workpiece(
 export const WORKPIECE_MATERIALS = {
   normal: workpiece(0xa9b4c0),
   selected: workpiece(0xf28c28, { roughness: 0.5 }),
+  /** 选面模式中鼠标指向的表面：未选中为浅橙色，已选中为深橙色，表示点击后会选中或取消 */
+  hover: workpiece(0xf6c089, { roughness: 0.5 }),
+  hoverSelected: workpiece(0xc8640f, { roughness: 0.5 }),
   unselectable: workpiece(0x59616b),
   /** 扫描、重建期间淡化显示的旧模型 */
   faded: workpiece(0xa9b4c0, { transparent: true, opacity: 0.32, depthWrite: false }),

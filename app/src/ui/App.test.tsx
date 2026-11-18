@@ -333,6 +333,21 @@ describe('选面（需求 6.4）', () => {
     expect(button('scan').disabled).toBe(false)
   })
 
+  it('清空选择后开始规划：对话框为规划全部，确认后发送空数组（需求 5.4、6.4）', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY'))
+    fireEvent.click(button('select'))
+    fireEvent.click(screen.getByRole('button', { name: '清空选择' }))
+    fireEvent.click(button('plan'))
+    const dialog = screen.getByRole('dialog', { name: '规划全部' })
+    expect(dialog.textContent).toContain('当前未选择表面，将对全部可处理表面进行路径规划。')
+    expect(within(dialog).queryByRole('button', { name: '开始规划' })).toBeNull()
+    fireEvent.click(within(dialog).getByRole('button', { name: '规划全部' }))
+    expect(socket.calls.at(-1)?.request).toEqual({
+      model_id: 'model_20261015T080000',
+      surface_ids: [],
+    })
+  })
+
   it('模型加载期间显示加载卡片，依赖模型的按钮不可用（需求 5.3 规则 8）', async () => {
     await connect(stateForPhase('MODEL_READY'))
     act(() => runtime.store.getState().setModel({ id: 'model_next', status: 'loading' }))

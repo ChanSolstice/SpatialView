@@ -9,6 +9,7 @@ import {
   confirmation,
   isActionAvailable,
   LABELS,
+  PLAN_ALL_LABEL,
   POWER_ON_CONFIRM_DELAY_MS,
   POWER_ON_PROGRESS,
   WORKPIECE_CHOICES,
@@ -417,18 +418,21 @@ describe('需求 5.4 的确认', () => {
     expect(POWER_ON_CONFIRM_DELAY_MS).toBe(1000)
   })
 
-  it('开始规划按情况合并为一个对话框', () => {
+  it('开始规划按情况合并为一个对话框；未选择表面时标题和确认按钮为规划全部', () => {
     const doc = texts.get('开始规划') ?? ''
     const quoted = [...doc.matchAll(/"([^"]+)"/g)].map((m) => m[1])
-    expect(quoted).toHaveLength(3)
-    const [empty, replace, ask] = quoted
-    expect(confirmation('plan', stateForPhase('MODEL_READY'), 0).lines).toEqual([empty, ask])
-    expect(confirmation('plan', stateForPhase('PLAN_READY'), 2).lines).toEqual([replace, ask])
-    expect(confirmation('plan', stateForPhase('PLAN_READY'), 0).lines).toEqual([
-      empty,
-      replace,
-      ask,
-    ])
+    expect(quoted).toHaveLength(5)
+    const [empty, replace, ask, all, normal] = quoted
+    expect(all).toBe(PLAN_ALL_LABEL)
+    const unselected = confirmation('plan', stateForPhase('MODEL_READY'), 0)
+    expect(unselected).toMatchObject({ title: all, lines: [empty, ask], confirmLabel: all })
+    const replacing = confirmation('plan', stateForPhase('PLAN_READY'), 2)
+    expect(replacing).toMatchObject({ title: normal, lines: [replace, ask], confirmLabel: normal })
+    expect(confirmation('plan', stateForPhase('PLAN_READY'), 0)).toMatchObject({
+      title: all,
+      lines: [empty, replace, ask],
+      confirmLabel: all,
+    })
   })
 })
 

@@ -326,6 +326,9 @@ export interface Confirmation {
 /** 上电的第二次确认：确认按钮延迟 1 秒才可以按，防止快速连点两下直接通过（需求 5.4）。 */
 export const POWER_ON_CONFIRM_DELAY_MS = 1000
 
+/** 未选择表面时开始规划的对话框标题和确认按钮（需求 5.4）。 */
+export const PLAN_ALL_LABEL = '规划全部'
+
 /** 开始清洗时设备异常的警告（需求 5.4）。APP 不因设备状态禁用开始清洗，改为在确认对话框中列出。 */
 export function startWarnings(state: SystemState | null): string[] {
   if (state === null) return []
@@ -374,6 +377,10 @@ export function confirmation(
       if (selectionSize === 0) lines.push('当前未选择表面，将对全部可处理表面进行路径规划。')
       if (state !== null && state.plan_id !== '') lines.push('规划完成后将替换当前规划。')
       lines.push('是否继续？')
+      // 未选择表面时发送空数组，即规划全部（接口 6.4）。标题和确认按钮写明，避免误以为没有选面就开始了规划
+      if (selectionSize === 0) {
+        return { ...simple(lines, PLAN_ALL_LABEL), confirmLabel: PLAN_ALL_LABEL }
+      }
       return simple(lines)
     }
     case 'start':

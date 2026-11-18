@@ -48,4 +48,17 @@ describe('materialFor', () => {
     expect(materialFor('selectable', true, false)).toBe(WORKPIECE_MATERIALS.normal)
     expect(materialFor('selectable', false, true)).toBe(WORKPIECE_MATERIALS.unselectable)
   })
+
+  it('选面模式中鼠标指向的表面：未选中为浅橙色，已选中为深橙色（前端UI设计第 5 节）', () => {
+    expect(materialFor('selectable', true, false, true)).toBe(WORKPIECE_MATERIALS.hover)
+    expect(materialFor('selectable', true, true, true)).toBe(WORKPIECE_MATERIALS.hoverSelected)
+    expect(WORKPIECE_MATERIALS.hover.color.getHex()).toBe(0xf6c089)
+    expect(WORKPIECE_MATERIALS.hoverSelected.color.getHex()).toBe(0xc8640f)
+  })
+
+  it('不可处理的表面和其他场景模式没有悬停预览', () => {
+    expect(materialFor('selectable', false, false, true)).toBe(WORKPIECE_MATERIALS.unselectable)
+    expect(materialFor('normal', true, true, true)).toBe(WORKPIECE_MATERIALS.normal)
+    expect(materialFor('faded', true, false, true)).toBe(WORKPIECE_MATERIALS.faded)
+  })
 })
