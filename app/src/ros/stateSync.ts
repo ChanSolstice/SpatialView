@@ -16,8 +16,28 @@ export type StateSource = 'get' | 'topic' | 'command'
 
 export type StateSync = (raw: unknown, source: StateSource) => SystemState | null
 
+export interface StateSyncOptions {
+  /** 把激光器视为已连接（需求 10.2 的 integration.assume_laser_connected），见 assumeLaserConnected。 */
+  assumeLaserConnected?: boolean
+}
+
+/**
+ * 把激光器视为已连接：服务端与激光器的通信完成前的联调设置（需求 10.2）。laser_state 为 OFFLINE 时
+ * 按 OFF 处理，去掉 LASER_OFFLINE 告警；其他取值不变。APP 中读取激光器状态的地方（Status Bar、
+ * 按钮、开始清洗的警告、告警）都取写入 store 的状态，在这里改一处即可。
+ */
+export function assumeLaserConnected(state: SystemState): SystemState {
+  const alarms = state.alarms.filter((alarm) => alarm.code !== 'LASER_OFFLINE')
+  if (state.laser_state !== 'OFFLINE' && alarms.length === state.alarms.length) return state
+  return {
+    ...state,
+    laser_state: state.laser_state === 'OFFLINE' ? 'OFF' : state.laser_state,
+    alarms,
+  }
+}
+
 /** 返回被接受的状态；校验失败或是旧消息时返回 null。 */
-export function createStateSync(store: AppStore): StateSync {
+export function createStateSync(store: AppStore, options: StateSyncOptions = {}): StateSync {
   return (raw, source) => {
     const s = store.getState()
     // 1. 校验。失败视为接口不匹配，产生本地告警（架构设计 4.2）
@@ -27,7 +47,7 @@ export function createStateSync(store: AppStore): StateSync {
       s.setContractError(`${source === 'topic' ? '状态消息' : '服务回复'}不符合接口约定：${field}`)
       return null
     }
-    const state = parsed.data
+    const state = options.assumeLaserConnected ? assumeLaserConnected(parsed.data) : parsed.data
 
     // 2、3. session_id 变化时接受并提示服务端重启；同一会话中丢弃旧消息（需求 7.5、7.6）
     const order = orderState(s.conn, state.session_id, state.seq)

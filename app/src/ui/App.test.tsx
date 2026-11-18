@@ -180,7 +180,7 @@ describe('已连接', () => {
 
   it('设备异常时开始清洗仍可用，确认框列出警告并随状态更新；确认后照常发送（需求 5.4）', async () => {
     const socket = await connect(
-      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', laser_state: 'OFFLINE' }),
+      stateForPhase('PLAN_READY', { robot_state: 'ESTOP', laser_state: 'ERROR' }),
     )
     expect(button('main').disabled).toBe(false)
     fireEvent.click(button('main'))
@@ -191,10 +191,14 @@ describe('已连接', () => {
         .map((li) => li.textContent)
     expect(items()).toEqual([
       '机械臂未就绪（急停），服务端可能拒绝开始清洗。',
-      '激光器未就绪（离线），本次清洗不出光，只运行轨迹。',
+      '激光器未就绪（异常），本次清洗不出光，只运行轨迹。',
     ])
+    // 默认配置把激光器视为已连接（需求 10.2）：离线按关闭处理，不列出
     await publish(socket, stateForPhase('PLAN_READY', { laser_state: 'OFFLINE' }))
-    expect(items()).toEqual(['激光器未就绪（离线），本次清洗不出光，只运行轨迹。'])
+    expect(items()).toEqual([])
+    expect(status('laser')).toContain('关闭')
+    await publish(socket, stateForPhase('PLAN_READY', { laser_state: 'ERROR' }))
+    expect(items()).toEqual(['激光器未就绪（异常），本次清洗不出光，只运行轨迹。'])
     fireEvent.click(within(dialog).getByRole('button', { name: '开始清洗' }))
     expect(socket.calls.at(-1)?.request).toEqual({
       command: 'START',
