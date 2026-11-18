@@ -4,7 +4,7 @@
  */
 import { Bvh, OrbitControls } from '@react-three/drei'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
-import { useEffect, useMemo, useRef, type ComponentRef } from 'react'
+import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Vector3, type Object3D, type PerspectiveCamera, type Sphere } from 'three'
 import { measure, MODEL_DOWNLOADED_MARK } from '../assets/loader.ts'
 import type { LoadedModel } from '../assets/model.ts'
@@ -97,12 +97,27 @@ function CameraRig() {
   )
 }
 
+let mouseSeen = false
+
 /**
- * 有能悬停的指针（鼠标）时才预览鼠标指向的表面（需求 6.4）。平板触屏没有悬停，不注册移动事件，
- * 单指拖动旋转时也就不为此拾取。
+ * 页面中出现过鼠标指针后才预览鼠标指向的表面（需求 6.4）。平板上只有触摸，不注册移动事件，单指拖动
+ * 旋转时也就不为此拾取。不用媒体查询 any-hover 判断：无头 Chrome、部分虚拟机和远程桌面中有鼠标也报告
+ * 为不能悬停。
  */
-const HOVER_CAPABLE =
-  typeof window.matchMedia === 'function' && window.matchMedia('(any-hover: hover)').matches
+function useMouseSeen(): boolean {
+  const [seen, setSeen] = useState(mouseSeen)
+  useEffect(() => {
+    if (seen) return
+    const onMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'mouse') return
+      mouseSeen = true
+      setSeen(true)
+    }
+    window.addEventListener('pointermove', onMove)
+    return () => window.removeEventListener('pointermove', onMove)
+  }, [seen])
+  return seen
+}
 
 function surfaceIdOf(object: Object3D): string | null {
   const id: unknown = object.userData.surface_id
@@ -122,6 +137,7 @@ function Workpiece() {
   const invalidate = useThree((s) => s.invalidate)
   const { workpiece } = sceneContent(phase, mode)
   const threshold = config.config.scene.tap_threshold_px
+  const mousePresent = useMouseSeen()
   const hovered = useRef<string | null>(null)
 
   // 换模型、切换场景模式时清除悬停；先于下面应用材质的 effect 执行
@@ -165,7 +181,7 @@ function Workpiece() {
     const id = event.buttons === 0 ? surfaceIdOf(event.object) : null
     hover(id !== null && model.surfaces.get(id)?.selectable === true ? id : null)
   }
-  const hoverable = selecting && HOVER_CAPABLE
+  const hoverable = selecting && mousePresent
   return (
     <>
       {/* 模型变化时重新挂载，为新模型的表面建立拾取加速结构 */}
