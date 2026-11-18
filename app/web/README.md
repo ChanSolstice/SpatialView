@@ -24,7 +24,7 @@
 1. 把压缩包解压到家目录下的非隐藏目录中，例如：
 
    ```bash
-   tar -xzf spatialview-web-0.1.2.tar.gz -C ~
+   tar -xzf spatialview-web-0.1.3.tar.gz -C ~
    ```
 
    Snap 版 Chromium 只能访问家目录下的非隐藏目录，不要解压到 `/tmp`、`/opt` 或以 `.` 开头的目录中。
@@ -32,7 +32,7 @@
 2. 在终端中运行启动脚本：
 
    ```bash
-   cd ~/spatialview-web-0.1.2
+   cd ~/spatialview-web-0.1.3
    ./start.sh
    ```
 
