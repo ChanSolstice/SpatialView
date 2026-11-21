@@ -56,7 +56,7 @@
 <text x="432" y="304" font-size="11.5" fill="#6b6a66" text-anchor="end">开始清洗</text>
 <text x="480" y="304" font-size="11.5" fill="#6b6a66" text-anchor="start">清洗完成</text>
 <text x="288" y="296" font-size="11.5" fill="#6b6a66" text-anchor="start">停止完成</text>
-<text x="544" y="328" font-size="11.5" fill="#6b6a66" text-anchor="middle">暂停</text>
+<text x="544" y="328" font-size="11.5" fill="#6b6a66" text-anchor="middle">暂停或中断</text>
 <text x="544" y="402" font-size="11.5" fill="#6b6a66" text-anchor="middle">继续</text>
 <text x="368" y="328" font-size="11.5" fill="#6b6a66" text-anchor="middle">停止</text>
 <text x="456" y="414" font-size="11.5" fill="#6b6a66" text-anchor="middle">停止</text>
