@@ -25,7 +25,7 @@ class FakeHooks:
         self.motion: list[bool] = []
         self.cleared = 0
         self.models: list[str] = []
-        self.plans: list[tuple[str, str, list[str]]] = []
+        self.plans: list[tuple[str, str, list[str], bool]] = []
         self.clear_estop_result = True
         self.power_on_result = True
         self.power_on_calls = 0
@@ -43,10 +43,12 @@ class FakeHooks:
         self.models.append(model_id)
         return ModelFiles(f"/models/{model_id}.glb", dict(SURFACES))
 
-    def write_plan(self, plan_id: str, model_id: str, surface_ids: list[str]) -> PlanFiles:
+    def write_plan(
+        self, plan_id: str, model_id: str, surface_ids: list[str], partial: bool = False
+    ) -> PlanFiles:
         if self.fail_export:
             raise ExportError("磁盘已满")
-        self.plans.append((plan_id, model_id, list(surface_ids)))
+        self.plans.append((plan_id, model_id, list(surface_ids), partial))
         return PlanFiles(f"/plans/{plan_id}.json", PLAN_DURATION, list(PROCESS_INTERVALS))
 
     def set_motion(self, active: bool) -> None:

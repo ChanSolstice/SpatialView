@@ -14,6 +14,8 @@ uv run python -m tools.sample_data --size demo    # 圆台：10 个表面、5,76
 
 输出到 `samples/<规模>/`（不提交）：`models/<model_id>.glb`、`plans/<plan_id>.json` 和 `manifest.json`，目录结构与接口文档第 9 节一致。
 
+另有失败路径 `failed_paths.json`（接口文档 11.1 的 `failed_paths` 格式）：在背向机械臂的两块侧面上往复，模拟规划服务生成了 TCP 路径、但机械臂够不到的情况；块体在 `wall_xmax_00`、`wall_xmax_01` 上，圆台在 `side_00`、`side_01` 上，各约 100–160 点。mock 服务端在部分无法规划时把它写入规划文件。加 `--failed-paths` 时规划文件本身也带上失败路径，可以单独检查 APP 的红色显示。
+
 ## 文件校验 `validate`
 
 按接口文档第 10、11 节检查 GLB 和规划文件（接口文档 15.1），服务端可以用它自测导出功能。
@@ -23,6 +25,7 @@ uv run python -m tools.validate --model 模型.glb --plan 规划.json --urdf 机
 ```
 
 - 同时给出模型和规划文件时做交叉检查：ID、表面是否存在且可清洗、工艺段 TCP 点是否贴近模型表面。最后一项能发现 Y-up 转换、单位或坐标系不一致。
+- 有失败路径 `failed_paths` 时检查格式、每段至少 2 个点、合计不超过 10 万点（接口文档 11.2）；给出模型时还检查所属表面和点是否贴近模型表面。
 - 给出 URDF 时检查关节名和关节范围；再给出 TCP 连杆名时，按正运动学核对工具末端是否沿 TCP 路径。
 - 有错误时退出码为 1。同一问题只列出前 5 处，其余计数。
 

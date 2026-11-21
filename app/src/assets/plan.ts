@@ -38,11 +38,13 @@ export interface PlanData {
   processEnds: Float64Array
   /** 空行程段，每段 6 个数 */
   travel: Float32Array
+  /** 失败路径（failed_paths）：每段路径中相邻两点连成的线段，每段 6 个数；不执行，不参与进度着色 */
+  failed: Float32Array
   processArrows: Arrows
   travelArrows: Arrows
   start: Vec3
   end: Vec3
-  /** TCP 路径点的包围盒 */
+  /** TCP 路径点和失败路径点的包围盒 */
   min: Vec3
   max: Vec3
 }
@@ -55,6 +57,7 @@ export function planBuffers(data: PlanData): ArrayBuffer[] {
     data.process,
     data.processEnds,
     data.travel,
+    data.failed,
     data.processArrows.positions,
     data.processArrows.directions,
     data.processArrows.times,
@@ -119,6 +122,37 @@ function readJoints(trajectory: unknown): {
     positions.set(values, i * joints)
   })
   return { names, times, positions }
+}
+
+/**
+ * 失败路径（接口文档 11.1 的 failed_paths）：可选，没有时省略、为空数组或 null。每段的点按顺序连线，
+ * 段与段之间不连。点数不足 2 个的段画不出线，这里不报错，由文件校验工具检查（11.2）。
+ */
+function readFailed(value: unknown): Float32Array {
+  if (value === undefined || value === null) return new Float32Array(0)
+  if (!Array.isArray(value)) throw new PlanError('规划文件的失败路径 failed_paths 不是数组')
+  const paths = value.map((path, i) => {
+    const list = isRecord(path) ? path.points : undefined
+    if (!Array.isArray(list)) throw new PlanError(`失败路径第 ${i + 1} 段缺少 points`)
+    list.forEach((point, j) => {
+      const p = isRecord(point) ? point.p : undefined
+      if (!Array.isArray(p) || p.length !== 3 || !p.every(isNumber)) {
+        throw new PlanError(`失败路径第 ${i + 1} 段第 ${j + 1} 个点的位置 p 不是 3 个数`)
+      }
+    })
+    return list as { p: Vec3 }[]
+  })
+  const count = paths.reduce((sum, list) => sum + Math.max(0, list.length - 1), 0)
+  const failed = new Float32Array(count * 6)
+  let o = 0
+  for (const list of paths) {
+    for (let k = 0; k + 1 < list.length; k++) {
+      failed.set((list[k] as { p: Vec3 }).p, o)
+      failed.set((list[k + 1] as { p: Vec3 }).p, o + 3)
+      o += 6
+    }
+  }
+  return failed
 }
 
 class ArrowBuilder {
@@ -234,13 +268,18 @@ export function parsePlan(
     next -= length
   }
 
+  const failed = readFailed(json.failed_paths)
+
+  // 包围盒也包括失败路径，框选视角时红色路径不被裁掉
   const min: Vec3 = [Infinity, Infinity, Infinity]
   const max: Vec3 = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < xyz.length; i += 3) {
-    for (const axis of [0, 1, 2] as const) {
-      const v = xyz[i + axis] as number
-      if (v < min[axis]) min[axis] = v
-      if (v > max[axis]) max[axis] = v
+  for (const values of [xyz, failed]) {
+    for (let i = 0; i < values.length; i += 3) {
+      for (const axis of [0, 1, 2] as const) {
+        const v = values[i + axis] as number
+        if (v < min[axis]) min[axis] = v
+        if (v > max[axis]) max[axis] = v
+      }
     }
   }
   const pointAt = (i: number): Vec3 => [
@@ -260,6 +299,7 @@ export function parsePlan(
     process,
     processEnds,
     travel,
+    failed,
     processArrows: processArrows.build(),
     travelArrows: travelArrows.build(),
     start: pointAt(0),

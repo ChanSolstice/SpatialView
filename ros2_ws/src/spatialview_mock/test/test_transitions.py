@@ -76,6 +76,7 @@ def test_reconstruct_export_failure(rig):
 def test_plan_success_and_partial(rig):
     rig.to_plan_ready()
     assert result(rig) == ("PLAN", "SUCCEEDED", "")
+    assert rig.hooks.plans[-1][3] is False  # 全部规划成功：没有失败路径
     rig.core.inject("plan_partial", {"keep": 1})
     rig.core.start_plan(rig.core.model_id, ["top_00", "top_01"])
     rig.run(5.0)
@@ -83,6 +84,7 @@ def test_plan_success_and_partial(rig):
     operation, outcome, code = result(rig)
     assert (operation, outcome, code) == ("PLAN", "SUCCEEDED", Code.PLAN_PARTIAL)
     assert rig.state["last_result"]["detail"] == "1 个表面不可达"
+    assert rig.hooks.plans[-1][2:] == (["top_00"], True)  # 规划文件带上失败路径（11.1）
 
 
 def test_plan_failure_keeps_old_plan(rig):

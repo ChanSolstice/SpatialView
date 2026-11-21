@@ -105,6 +105,59 @@ def test_ids_frame_and_surfaces(small_plan, model_info):
     } <= found
 
 
+class TestFailedPaths:
+    """失败路径（接口文档 11.1 的 failed_paths，可选；11.2 的要求）。"""
+
+    def test_valid(self, small_plan, small_failed_paths, model_info):
+        small_plan["failed_paths"] = small_failed_paths
+        report = validate_plan(small_plan, model=model_info)
+        assert report.ok, report.format()
+        assert report.count("warning") == 0, report.format()
+        assert {"FAILED_PATHS_SUMMARY", "FAILED_NEAR_MODEL"} <= report.codes("info")
+
+    def test_optional(self, small_plan):
+        report = validate_plan(dict(small_plan, failed_paths=[]))
+        assert report.ok and "FAILED_PATHS_SUMMARY" not in report.codes("info")
+        report = validate_plan(dict(small_plan, failed_paths=None))
+        assert report.ok and "FAILED_PATHS" in report.codes("warning")
+
+    def test_format(self, small_plan, small_failed_paths):
+        assert "FAILED_PATHS" in errors(dict(small_plan, failed_paths={}))
+        path = small_failed_paths[0]
+        path["surface_id"] = ""
+        path["points"][3]["p"] = [0.0, 0.0]
+        small_plan["failed_paths"] = small_failed_paths
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+        small_plan["failed_paths"] = [{"surface_id": "wall_xmax_00", "points": {}}]
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+        small_plan["failed_paths"] = [
+            {"surface_id": "wall_xmax_00", "points": [{"p": [0, 0, math.inf]}, {"p": [0, 0, 0]}]}
+        ]
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+
+    def test_at_least_two_points(self, small_plan, small_failed_paths):
+        small_failed_paths[1]["points"] = small_failed_paths[1]["points"][:1]
+        small_plan["failed_paths"] = small_failed_paths
+        assert errors(small_plan) == {"FAILED_PATH_POINTS"}
+
+    def test_point_limit(self, small_plan):
+        points = [{"p": [0.64, 0.0, 0.05]} for _ in range(100_001)]
+        small_plan["failed_paths"] = [{"surface_id": "wall_xmax_00", "points": points}]
+        assert "POINTS_LIMIT" in errors(small_plan)
+
+    def test_surfaces_and_position(self, small_plan, small_failed_paths, model_info):
+        small_failed_paths[0]["surface_id"] = "wall_zz"
+        small_failed_paths[1]["surface_id"] = "wall_ymax_00"
+        small_plan["failed_paths"] = small_failed_paths
+        assert {"FAILED_PATH_SURFACE_UNKNOWN", "FAILED_PATH_SURFACE_NOT_SELECTABLE"} <= errors(
+            small_plan, model=model_info
+        )
+        for path in small_failed_paths:
+            for point in path["points"]:
+                point["p"][2] += 1.0
+        assert "FAILED_FAR_FROM_MODEL" in errors(small_plan, model=model_info)
+
+
 def test_forward_kinematics_mismatch(small_plan, robot):
     # 工具实际长 0.17 米而 URDF 写 0.15 米：TCP 路径整体比正运动学低 2 厘米
     for point in small_plan["tcp_path"]["points"]:

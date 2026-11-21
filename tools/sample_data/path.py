@@ -5,6 +5,8 @@
   只在越过边缘时走一段空行程。顶面上工具竖直向下；侧面上工具比表面法向多朝下倾斜一些，否则清洗
   下部时机械臂的腕部会低到桌面。工具 Y 轴沿圆周切向，越过边缘时工具绕它转向侧面。服务端实际规划的
   是最短路径，不一定是这样的形式，演示中不必一致。
+- 失败路径（接口文档 11.1 的 failed_paths）：在背向机械臂的侧面上往复的几条线，模拟规划服务生成了 TCP 路径、
+  但机械臂够不到的情况。只有位置，点距与工艺段相同。
 """
 
 from __future__ import annotations
@@ -84,6 +86,18 @@ DEMO_PATH = FrustumPathSpec(
 )
 
 
+# 失败路径往复的几条线在侧面上的高度：块体为侧面高度的比例，圆台为侧面清洗高度范围内均分
+FAILED_LINES = 3
+
+
+@dataclass
+class FailedPath:
+    """无法执行的路径（接口文档 11.1 的 failed_paths）：所属表面和 TCP 位置。"""
+
+    surface_id: str
+    positions: np.ndarray  # (N, 3)
+
+
 @dataclass
 class TcpPath:
     t: np.ndarray  # (N,)
@@ -98,6 +112,40 @@ def _segment(start: np.ndarray, end: np.ndarray, spacing: float) -> np.ndarray:
     steps = max(2, math.ceil(distance / spacing))
     fraction = np.arange(1, steps + 1) / steps
     return start + fraction[:, None] * (end - start)
+
+
+def _zigzag(lines: list[np.ndarray], spacing: float) -> np.ndarray:
+    """依次连接几条线（各为 (k, 3)），线与线之间按不超过 spacing 的间距用直线连起来，没有重复的点。"""
+    points = [lines[0]]
+    for line in lines[1:]:
+        points.append(_segment(points[-1][-1], line[0], spacing)[:-1])
+        points.append(line)
+    return np.concatenate(points)
+
+
+def build_failed_paths(spec: WorkpieceSpec, path: PathSpec, patches: int = 2) -> list[FailedPath]:
+    """曲面块体背向机械臂（机械臂在 base_link 原点，工件在 +X 方向）的侧面 wall_xmax：前 patches 块表面上
+    水平往复。"""
+    x1 = spec.x_range[1]
+    y0, y1 = spec.y_range
+    count_y = spec.top_patches[1] * spec.patch_quads[1]
+    ys = np.linspace(y0, y1, count_y + 1)
+    wall_patches = spec.wall_patches[1]
+    per_patch = count_y // wall_patches
+    step = path.process_speed * path.dt
+    result = []
+    for k in range(min(patches, wall_patches)):
+        ya = ys[k * per_patch] + path.margin
+        yb = ys[(k + 1) * per_patch] - path.margin
+        y = np.linspace(ya, yb, max(2, math.ceil((yb - ya) / step) + 1))
+        top = spec.height(np.full_like(y, x1), y)
+        lines = []
+        for i in range(FAILED_LINES):
+            line = np.column_stack([np.full_like(y, x1), y, top * (i + 1) / (FAILED_LINES + 1)])
+            lines.append(line[::-1] if i % 2 else line)
+        # 从上往下：第一条线在最高处
+        result.append(FailedPath(f"wall_xmax_{k:02d}", _zigzag(lines[::-1], step)))
+    return result
 
 
 def build_path(spec: WorkpieceSpec, path: PathSpec) -> TcpPath:
@@ -257,3 +305,23 @@ def build_frustum_path(spec: FrustumSpec, path: FrustumPathSpec) -> TcpPath:
     positions_all = np.concatenate(positions)
     t = np.arange(len(positions_all)) * path.dt
     return TcpPath(t, np.concatenate(process), positions_all, np.concatenate(rotations))
+
+
+def build_frustum_failed_paths(
+    spec: FrustumSpec, path: FrustumPathSpec, sides: tuple[int, ...] = (0, 1)
+) -> list[FailedPath]:
+    """圆台背向机械臂的侧面（机械臂在 -X 方向，侧面 0 正对 +X）：沿圆周往复，逐圈向下；圈与圈之间沿母线。"""
+    step = path.process_speed * path.dt
+    angle_margin = path.margin / spec.top_radius
+    heights = np.linspace(path.side_z[1], path.side_z[0], FAILED_LINES)
+    result = []
+    for k in sides:
+        start, end = spec.sector_range(k)
+        start, end = start + angle_margin, end - angle_margin
+        lines = []
+        for i, z in enumerate(heights):
+            count = max(2, math.ceil(float(spec.radius(z)) * (end - start) / step) + 1)
+            theta = np.linspace(end, start, count) if i % 2 else np.linspace(start, end, count)
+            lines.append(spec.side_point(theta, z))
+        result.append(FailedPath(f"side_{k:02d}", _zigzag(lines, step)))
+    return result

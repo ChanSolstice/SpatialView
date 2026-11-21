@@ -53,9 +53,14 @@ export const PATH_COLORS = {
   process: 0x1f6feb,
   travel: 0x7f8995,
   progress: 0x1e9e50,
+  /** 失败路径：--danger */
+  failed: 0xd93025,
 }
 
-/** 工艺段为粗实线，空行程为细虚线（线段 18 毫米、间隔 14 毫米），进度为叠在工艺段上的绿线。 */
+/**
+ * 工艺段为粗实线，空行程为细虚线（线段 18 毫米、间隔 14 毫米），进度为叠在工艺段上的绿线，
+ * 失败路径为红色实线（线宽 3 像素，不画箭头，不参与进度着色）。
+ */
 export const PATH_MATERIALS = {
   process: new LineMaterial({ color: PATH_COLORS.process, linewidth: 4 }),
   travel: new LineMaterial({
@@ -73,6 +78,7 @@ export const PATH_MATERIALS = {
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -8,
   }),
+  failed: new LineMaterial({ color: PATH_COLORS.failed, linewidth: 3 }),
 }
 
 /** 线宽以屏幕像素计的材质，画布尺寸变化时由场景更新分辨率。 */

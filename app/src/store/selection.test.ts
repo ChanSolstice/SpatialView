@@ -78,7 +78,7 @@ describe('选面（需求 6.4）', () => {
     expect([...s().selection]).toEqual(['s2'])
   })
 
-  it('新规划生效后再次进入：按新规划的表面重新选择（部分表面未能规划时便于找到它们，需求 5.5）', () => {
+  it('新规划生效后再次进入：按新规划的表面重新选择（部分路径未能规划时便于找到未规划的表面，需求 5.5）', () => {
     serve(stateForPhase('PLAN_READY', { plan_surface_ids: ['s1', 's2'] }))
     s().enterSelect()
     s().setMode('browse')

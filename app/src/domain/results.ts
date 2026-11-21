@@ -66,7 +66,7 @@ export function resultNotice(result: OperationResult): ResultNotice | null {
     case 'SUCCEEDED':
       if (operation === 'TASK') return notice('清洗完成', 'success')
       if (operation === 'PLAN' && code === 'PLAN_PARTIAL')
-        return notice('部分表面未能规划', 'partial')
+        return notice('部分路径未能规划', 'partial')
       return null
     default:
       return null

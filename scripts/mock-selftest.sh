@@ -10,7 +10,8 @@ cd "$(dirname "$0")/.."
 ROOT=$PWD
 
 if [ "${1:-}" != "--inside" ]; then
-  [ -f samples/small/manifest.json ] || uv run python -m tools.sample_data --size small >/dev/null
+  # 没有样例，或样例早于失败路径（failed_paths.json）时重新生成
+  grep -qs '"failed_paths"' samples/small/manifest.json || uv run python -m tools.sample_data --size small >/dev/null
   scripts/ros.sh colcon build >/dev/null
   exec scripts/ros.sh bash /ws/scripts/mock-selftest.sh --inside
 fi
@@ -117,6 +118,13 @@ check "start_plan 受理" has "$(call /spatialview/start_plan spatialview_msgs/s
 check "规划完成后为规划就绪" eventually phase PLAN_READY
 plan=$(state plan_id)
 check "规划文件已导出（$plan）" test -f "$FILES/plans/$plan.json"
+check "全部规划成功时没有失败路径" bash -c "! grep -q failed_paths '$FILES/plans/$plan.json'"
+check "注入部分无法规划" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'plan_partial', args: '{\"keep\": 1}'}")" "ok=True"
+check "start_plan 受理（部分无法规划）" has "$(call /spatialview/start_plan spatialview_msgs/srv/StartPlan "{model_id: '$model', surface_ids: []}")" "code='OK'"
+check "部分规划完成后为规划就绪" eventually phase PLAN_READY
+check "结果为 PLAN_PARTIAL" has "$(ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null)" "PLAN_PARTIAL"
+plan=$(state plan_id)
+check "规划文件带失败路径（$plan）" grep -q '"failed_paths":\[{"surface_id":' "$FILES/plans/$plan.json"
 
 echo "激光器不可用时的清洗（接口文档 6.5）"
 # 样例的清洗在 10 倍速下只有几秒，从这里到急停改回原速

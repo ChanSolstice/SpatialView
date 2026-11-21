@@ -26,6 +26,13 @@ def small_plan(small_sample) -> dict:
     return json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
 
 
+@pytest.fixture
+def small_failed_paths(small_sample) -> list:
+    """小样例的失败路径（failed_paths.json），每个测试一份新的。"""
+    out, manifest = small_sample
+    return json.loads((out / manifest["failed_paths"]).read_text(encoding="utf-8"))
+
+
 @pytest.fixture(scope="session")
 def robot():
     return parse_urdf(DEFAULT_URDF)

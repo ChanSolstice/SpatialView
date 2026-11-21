@@ -89,7 +89,7 @@ ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject \
 | --- | --- | --- |
 | `camera`、`laser` | `state`：OK、ERROR、OFFLINE | 相机、激光器的状态 |
 | `fail_next` | `operation`：SCAN、RECONSTRUCT、PLAN；`code`、`detail` 可选 | 下一次该操作失败，默认原因码分别为 NO_VALID_DATA、RECONSTRUCT_ERROR、NO_SOLUTION |
-| `plan_partial` | `keep`：整数 | 下一次规划只成功前 `keep` 个表面（PLAN_PARTIAL）；为 0 时规划失败（NO_SOLUTION） |
+| `plan_partial` | `keep`：整数 | 下一次规划只成功前 `keep` 个表面（PLAN_PARTIAL），规划文件带上样例的失败路径 `failed_paths`；为 0 时规划失败（NO_SOLUTION） |
 | `interlock` | `ok`：布尔；`detail` 可选 | 激光联锁是否满足，不满足时的说明默认为"安全门未关闭" |
 | `module` | `name`：scan、reconstruct、plan、execute；`available`：布尔 | 模块是否可用 |
 | `next_code` | `code`、`detail` 可选 | 下一个指令直接返回这个状态码，状态不变；可以是未知的码 |
@@ -98,7 +98,7 @@ ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject \
 
 ## 与真实服务端的差别
 
-- 规划文件沿用样例的 TCP 路径和关节轨迹，只替换 ID 和 `surface_ids`，不随所选表面变化。
+- 规划文件沿用样例的 TCP 路径和关节轨迹，只替换 ID 和 `surface_ids`，不随所选表面变化。部分无法规划时的失败路径固定为样例的 `failed_paths.json`（背向机械臂的两块侧面），也不随未规划的表面变化。
 - 扫描和重建不产生新的几何，每次得到的模型都是同一个样例（ID 不同）。
 - 工件类型只校验和记录，不影响得到的模型。
 - 设备异常引起的中断立即完成；真实服务端最多可以有 2 秒（接口文档 8.5）。

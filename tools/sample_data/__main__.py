@@ -24,6 +24,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--tcp-link", default=DEFAULT_TCP_LINK, help="URDF 中的 TCP 连杆名")
     parser.add_argument("--model-id", help="model_id（默认按规模取固定值）")
     parser.add_argument("--plan-id", help="plan_id（默认按规模取固定值）")
+    parser.add_argument(
+        "--failed-paths",
+        action="store_true",
+        help="规划文件中带上失败路径 failed_paths（接口文档 11.1）；默认只写入 failed_paths.json",
+    )
     args = parser.parse_args(argv)
 
     out = args.out or Path("samples") / args.size
@@ -36,6 +41,7 @@ def main(argv: list[str] | None = None) -> int:
             tcp_link=args.tcp_link,
             model_id=args.model_id,
             plan_id=args.plan_id,
+            with_failed_paths=args.failed_paths,
         )
     except SampleError as exc:
         print(f"生成失败：{exc}", file=sys.stderr)

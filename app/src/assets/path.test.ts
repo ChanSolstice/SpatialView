@@ -8,6 +8,7 @@ import {
   ARROW_LIFT_PX,
   ARROW_MATERIALS,
   PATH_MATERIALS,
+  SCREEN_LINE_MATERIALS,
   TRAVEL_ARROW_SCALE,
   chevronGeometry,
 } from './materials.ts'
@@ -17,6 +18,22 @@ import { parsePlan } from './plan.ts'
 const IDS = { planId: 'plan_a', modelId: 'model_a' }
 // 0–10 秒，0–5 秒为工艺段（5 段），之后为空行程（5 段）；每段 0.02 米，沿 +X
 const build = (spacing = 0.02) => buildPath(parsePlan(testPlanJson(IDS), IDS, spacing))
+// 两段失败路径：在路径旁边沿 Y 方向
+const FAILED_PATHS = [
+  [
+    [0.35, 0.1, 0.1],
+    [0.35, 0.12, 0.1],
+    [0.35, 0.14, 0.1],
+  ],
+  [
+    [0.45, 0.1, 0.1],
+    [0.45, 0.12, 0.1],
+  ],
+]
+const buildWithFailed = () => {
+  const options = { ...IDS, failedPaths: FAILED_PATHS }
+  return buildPath(parsePlan(testPlanJson(options), IDS, 0.02))
+}
 
 const child = <T>(plan: ReturnType<typeof build>, name: string) =>
   plan.group.getObjectByName(name) as T
@@ -62,11 +79,12 @@ const arrowPosition = (plan: ReturnType<typeof build>, i: number) =>
   new Vector3().fromArray(plan.data.processArrows.positions, i * 3)
 
 describe('buildPath', () => {
-  it('每类线段一个对象：工艺段、空行程段、进度线、两组箭头', () => {
+  it('每类线段一个对象：工艺段、空行程段、失败路径、进度线、两组箭头', () => {
     const plan = build()
     expect(plan.group.children.map((c) => c.name)).toEqual([
       'process',
       'travel',
+      'failed',
       'progress',
       'process-arrows',
       'travel-arrows',
@@ -244,10 +262,33 @@ describe('buildPath', () => {
     expect(color(0)).toBe(ARROW_COLORS.process)
   })
 
+  it('失败路径：红色实线，线宽 3 像素，没有箭头，不参与进度着色；没有时不绘制', () => {
+    expect(child<LineSegments2>(build(), 'failed').visible).toBe(false)
+    const plan = buildWithFailed()
+    const failed = child<LineSegments2>(plan, 'failed')
+    expect(failed.visible).toBe(true)
+    expect(failed.material).toBe(PATH_MATERIALS.failed)
+    expect(PATH_MATERIALS.failed.color.getHex()).toBe(0xd93025)
+    expect(PATH_MATERIALS.failed.linewidth).toBe(3)
+    expect(PATH_MATERIALS.failed.dashed).toBe(false)
+    expect(SCREEN_LINE_MATERIALS).toContain(PATH_MATERIALS.failed)
+    // 3 段线：第一段路径 2 段，第二段 1 段
+    expect(failed.geometry.getAttribute('instanceStart').count).toBe(3)
+    // 箭头只在工艺段和空行程上
+    expect(child<InstancedMesh>(plan, 'process-arrows').count).toBe(5)
+    expect(child<InstancedMesh>(plan, 'travel-arrows').count).toBe(5)
+    // 进度着色后失败路径不变
+    plan.setProgress(10)
+    expect(failed.material).toBe(PATH_MATERIALS.failed)
+    expect(failed.geometry.getAttribute('instanceStart').count).toBe(3)
+    // 包围球包括失败路径
+    expect(plan.sphere.containsPoint(new Vector3(0.35, 0.14, 0.1))).toBe(true)
+  })
+
   it('释放路径的几何体，不释放共享的材质和箭头的几何体', () => {
-    const plan = build()
+    const plan = buildWithFailed()
     const disposed: string[] = []
-    for (const name of ['process', 'travel', 'progress']) {
+    for (const name of ['process', 'travel', 'failed', 'progress']) {
       child<LineSegments2>(plan, name).geometry.addEventListener('dispose', () =>
         disposed.push(name),
       )
@@ -259,7 +300,7 @@ describe('buildPath', () => {
     ARROW_MATERIALS.process.addEventListener('dispose', onShared)
     ARROW_GEOMETRY.addEventListener('dispose', onShared)
     plan.dispose()
-    expect(disposed).toEqual(['process', 'travel', 'progress'])
+    expect(disposed).toEqual(['process', 'travel', 'failed', 'progress'])
     expect(sharedDisposed).toBe(false)
   })
 })

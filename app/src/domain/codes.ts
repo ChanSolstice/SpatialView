@@ -23,7 +23,7 @@ export const COMMAND_CODE_TEXT: Record<CommandCode, string> = {
 
 /** 7.2 操作结果原因码：结果提示框中的原因。 */
 export const RESULT_CODE_TEXT: Record<ResultCode, string> = {
-  PLAN_PARTIAL: '部分表面无法生成清洗路径，未包含在本次规划中',
+  PLAN_PARTIAL: '部分表面或路径无法生成清洗路径，未包含在本次规划中',
   ROBOT_ESTOP: '机械臂急停',
   ROBOT_FAULT: '机械臂故障',
   ROBOT_PROTECTIVE_STOP: '机械臂保护性停止',

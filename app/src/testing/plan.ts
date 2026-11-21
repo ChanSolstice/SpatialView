@@ -15,6 +15,8 @@ export interface TestPlanOptions {
   jointNames?: string[]
   /** 点数，默认 11：0–10 秒，每秒一个点 */
   points?: number
+  /** 失败路径（接口文档 11.1 的 failed_paths），每段为点的位置列表；为空时不写这个字段 */
+  failedPaths?: number[][][]
 }
 
 /**
@@ -25,6 +27,7 @@ export function testPlanJson({
   modelId,
   jointNames = I5H_JOINTS,
   points = 11,
+  failedPaths = [],
 }: TestPlanOptions): object {
   const last = points - 1
   const times = Array.from({ length: points }, (_, i) => i)
@@ -45,5 +48,11 @@ export function testPlanJson({
         process_on: t <= last / 2,
       })),
     },
+    ...(failedPaths.length > 0 && {
+      failed_paths: failedPaths.map((path) => ({
+        surface_id: 's2',
+        points: path.map((p) => ({ p })),
+      })),
+    }),
   }
 }

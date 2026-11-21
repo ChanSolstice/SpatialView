@@ -174,8 +174,8 @@ class MockServer(Node):
     def write_model(self, model_id):
         return self.store.write_model(model_id)
 
-    def write_plan(self, plan_id, model_id, surface_ids):
-        return self.store.write_plan(plan_id, model_id, surface_ids)
+    def write_plan(self, plan_id, model_id, surface_ids, partial=False):
+        return self.store.write_plan(plan_id, model_id, surface_ids, partial)
 
     def set_motion(self, active: bool) -> None:
         if self.motion_client.service_is_ready():

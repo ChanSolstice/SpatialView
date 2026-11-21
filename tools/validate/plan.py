@@ -62,9 +62,12 @@ def validate_plan(
 
     joints = _check_joint_trajectory(report, plan.get("joint_trajectory"), duration, robot)
     tcp = _check_tcp_path(report, plan.get("tcp_path"), duration)
+    failed = _check_failed_paths(report, plan, model)
 
     if model is not None and tcp is not None:
         _check_tcp_near_model(report, model, tcp, tcp_tolerance)
+    if model is not None and failed is not None:
+        _check_failed_near_model(report, model, failed, tcp_tolerance)
     if robot is not None and tcp_link and joints is not None and tcp is not None:
         _check_forward_kinematics(report, robot, tcp_link, joints, tcp, fk_tolerance)
 
@@ -271,6 +274,75 @@ def _check_tcp_path(report, path, duration):
     return (t, p, process) if times_ok else None
 
 
+def _check_failed_paths(report: Report, plan: dict, model: ModelInfo | None):
+    """失败路径（11.1 的 failed_paths，可选）：每段至少 2 个点，合计不超过 10 万点（11.2）。
+    返回全部点 (N, 3)；没有失败路径或格式不对时返回 None。"""
+    if "failed_paths" not in plan:
+        return None
+    paths = plan["failed_paths"]
+    if paths is None:
+        report.warning("FAILED_PATHS", "failed_paths 为 null：没有失败路径时省略该字段或给空数组")
+        return None
+    if not isinstance(paths, list):
+        report.error("FAILED_PATHS", "failed_paths 应为数组")
+        return None
+    if not paths:
+        return None
+    points: list[list[float]] = []
+    surfaces: list[str] = []
+    complete = True
+    for i, path in enumerate(paths):
+        where = f"failed_paths[{i}]"
+        if not isinstance(path, dict):
+            report.error("FAILED_PATH_FORMAT", f"{where} 不是对象")
+            complete = False
+            continue
+        surface_id = path.get("surface_id")
+        if not (isinstance(surface_id, str) and surface_id):
+            report.error("FAILED_PATH_FORMAT", f"{where}.surface_id 应为非空字符串")
+            complete = False
+        else:
+            surfaces.append(surface_id)
+        path_points = path.get("points")
+        if not isinstance(path_points, list):
+            report.error("FAILED_PATH_FORMAT", f"{where}.points 应为数组")
+            complete = False
+            continue
+        if len(path_points) < 2:
+            report.error(
+                "FAILED_PATH_POINTS", f"{where} 只有 {len(path_points)} 个点，每段至少 2 个点"
+            )
+        for j, point in enumerate(path_points):
+            p = point.get("p") if isinstance(point, dict) else None
+            if not _is_numbers(p, 3) or not all(math.isfinite(v) for v in p):
+                report.error("FAILED_PATH_FORMAT", f"{where}.points[{j}].p 应为 3 个有限数值")
+                complete = False
+                break
+            points.append(p)
+    if len(points) > MAX_POINTS:
+        report.error("POINTS_LIMIT", f"failed_paths 合计 {len(points)} 点，超过 {MAX_POINTS}")
+    if model is not None:
+        for surface_id in dict.fromkeys(surfaces):
+            if surface_id not in model.surfaces:
+                report.error(
+                    "FAILED_PATH_SURFACE_UNKNOWN", f"失败路径的表面 {surface_id} 不在模型中"
+                )
+            elif not model.surfaces[surface_id]:
+                report.error(
+                    "FAILED_PATH_SURFACE_NOT_SELECTABLE",
+                    f"失败路径的表面 {surface_id} 在模型中标记为不可清洗",
+                )
+    if not complete:
+        return None
+    names = "、".join(dict.fromkeys(surfaces))
+    report.info(
+        "FAILED_PATHS_SUMMARY",
+        f"失败路径 {len(paths)} 段，{len(points)} 点（表面 {names}）；规划结果应为 PLAN SUCCEEDED、"
+        "原因码 PLAN_PARTIAL",
+    )
+    return np.array(points, float)
+
+
 def _sample(count: int) -> np.ndarray:
     return np.unique(np.linspace(0, count - 1, min(count, SAMPLE_LIMIT)).astype(int))
 
@@ -318,6 +390,23 @@ def _check_tcp_near_model(report, model: ModelInfo, tcp, tolerance: float) -> No
         )
     else:
         report.info("TCP_NEAR_MODEL", f"{ratio:.0%} 的工艺段 TCP 点在模型表面 {tolerance} 米以内")
+
+
+def _check_failed_near_model(
+    report, model: ModelInfo, points: np.ndarray, tolerance: float
+) -> None:
+    if len(points) == 0 or len(model.points) == 0:
+        return
+    sample = points[_sample(len(points))]
+    ratio = float(points_within(model.points, sample, tolerance).mean())
+    if ratio < NEAR_MODEL_RATIO:
+        report.error(
+            "FAILED_FAR_FROM_MODEL",
+            f"只有 {ratio:.0%} 的失败路径点在模型表面 {tolerance} 米以内（要求至少"
+            f" {NEAR_MODEL_RATIO:.0%}）：失败路径与 tcp_path 使用同一坐标系 base_link",
+        )
+    else:
+        report.info("FAILED_NEAR_MODEL", f"{ratio:.0%} 的失败路径点在模型表面 {tolerance} 米以内")
 
 
 def _check_forward_kinematics(report, robot: Robot, tcp_link: str, joints, tcp, tolerance) -> None:

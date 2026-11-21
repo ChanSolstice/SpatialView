@@ -6,8 +6,16 @@ import pytest
 
 from tools.common.glb import read_glb
 from tools.sample_data.generate import generate
-from tools.sample_data.path import DEMO_PATH, LARGE_PATH, build_frustum_path, build_path
-from tools.sample_data.workpiece import DEMO, LARGE, build_surfaces
+from tools.sample_data.path import (
+    DEMO_PATH,
+    LARGE_PATH,
+    SMALL_PATH,
+    build_failed_paths,
+    build_frustum_failed_paths,
+    build_frustum_path,
+    build_path,
+)
+from tools.sample_data.workpiece import DEMO, LARGE, SMALL, build_surfaces
 from tools.validate import validate_model, validate_plan
 
 
@@ -129,3 +137,63 @@ def test_demo_wrist_stays_above_table(demo_sample, robot):
         chain = robot.chain(link)
         heights = chain.fk(joints(plan)[:, : len(chain.names)])[:, 2, 3]
         assert heights.min() > 0.08, link
+
+
+class TestFailedPaths:
+    """失败路径（接口文档 11.1 的 failed_paths）：在背向机械臂的侧面上，不与 TCP 路径重复。"""
+
+    def test_block_on_far_wall(self):
+        failed = build_failed_paths(SMALL, SMALL_PATH)
+        assert [f.surface_id for f in failed] == ["wall_xmax_00", "wall_xmax_01"]
+        step = SMALL_PATH.process_speed * SMALL_PATH.dt
+        for f in failed:
+            p = f.positions
+            assert np.allclose(p[:, 0], SMALL.x_range[1])  # 在侧面上
+            assert (p[:, 2] > 0).all() and (p[:, 2] < SMALL.base_height).all()
+            gaps = np.linalg.norm(np.diff(p, axis=0), axis=1)
+            assert gaps.min() > 0 and gaps.max() <= step + 1e-9  # 点距与工艺段相同，没有重复的点
+        assert failed[0].positions[:, 1].max() <= 0.0 <= failed[1].positions[:, 1].min()
+
+    def test_frustum_on_far_sides(self):
+        failed = build_frustum_failed_paths(DEMO, DEMO_PATH)
+        assert [f.surface_id for f in failed] == ["side_00", "side_01"]
+        cx, cy = DEMO.center
+        for k, f in enumerate(failed):
+            p = f.positions
+            radial = np.hypot(p[:, 0] - cx, p[:, 1] - cy)
+            assert np.allclose(radial, DEMO.radius(p[:, 2]))  # 在侧面上
+            theta = np.arctan2(p[:, 1] - cy, p[:, 0] - cx)
+            start, end = DEMO.sector_range(k)
+            assert theta.min() > start and theta.max() < end
+            assert np.linalg.norm(np.diff(p, axis=0), axis=1).min() > 0
+
+    def test_written_separately_by_default(self, small_sample):
+        out, manifest = small_sample
+        plan = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
+        assert "failed_paths" not in plan and manifest["plan_has_failed_paths"] is False
+        failed = json.loads((out / manifest["failed_paths"]).read_text(encoding="utf-8"))
+        assert [f["surface_id"] for f in failed] == ["wall_xmax_00", "wall_xmax_01"]
+        assert sum(len(f["points"]) for f in failed) == manifest["failed_points"]
+        assert set(failed[0]["points"][0]) == {"p"}
+
+    def test_plan_with_failed_paths_is_valid(self, tmp_path, robot):
+        manifest = generate("small", tmp_path, with_failed_paths=True)
+        plan = json.loads((tmp_path / manifest["plan"]).read_text(encoding="utf-8"))
+        assert [f["surface_id"] for f in plan["failed_paths"]] == ["wall_xmax_00", "wall_xmax_01"]
+        assert list(plan)[-1] == "failed_paths"  # 排在最后，mock 服务端据此替换
+        model_report, info = validate_model(tmp_path / manifest["model"])
+        report = validate_plan(plan, model=info, robot=robot, tcp_link="tcp_link")
+        assert report.ok, report.format()
+        assert report.count("warning") == 0, report.format()
+        assert "FAILED_NEAR_MODEL" in report.codes("info")
+        # 失败路径的表面没有列入 surface_ids（整个表面都无法执行）
+        assert not {f["surface_id"] for f in plan["failed_paths"]} & set(plan["surface_ids"])
+
+    def test_demo_failed_paths_near_model(self, demo_sample):
+        out, manifest = demo_sample
+        failed = json.loads((out / manifest["failed_paths"]).read_text(encoding="utf-8"))
+        plan = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
+        _, info = validate_model(out / manifest["model"])
+        report = validate_plan(dict(plan, failed_paths=failed), model=info)
+        assert report.ok, report.format()
+        assert "FAILED_NEAR_MODEL" in report.codes("info")

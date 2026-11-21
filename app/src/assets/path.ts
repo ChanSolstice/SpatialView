@@ -1,5 +1,6 @@
 /**
- * TCP 路径的三维对象（需求 6.5；前端UI设计第 5 节；架构设计 5.7）：工艺段、空行程段、进度叠加线和方向箭头。
+ * TCP 路径的三维对象（需求 6.5；前端UI设计第 5 节；架构设计 5.7）：工艺段、空行程段、失败路径、进度叠加线和
+ * 方向箭头。
  * 由规划解析的结果在主线程创建，每类线段只有一个对象；进度通过绘制数量和箭头的实例颜色显示，不重建几何。
  */
 import {
@@ -155,6 +156,9 @@ export function buildPath(data: PlanData): LoadedPlan {
   const travel = lines(data.travel, 'travel', PATH_MATERIALS.travel)
   // 虚线按沿线距离分段
   travel.computeLineDistances()
+  // 失败路径：不执行，没有箭头，不参与进度着色；没有时不绘制
+  const failed = lines(data.failed, 'failed', PATH_MATERIALS.failed)
+  failed.visible = data.failed.length > 0
 
   // 进度线与工艺段共用顶点数据，只改绘制数量
   const progressGeometry = new LineSegmentsGeometry()
@@ -178,7 +182,7 @@ export function buildPath(data: PlanData): LoadedPlan {
 
   const group = new Group()
   group.name = data.planId
-  group.add(process, travel, progress, processArrows, travelArrows)
+  group.add(process, travel, failed, progress, processArrows, travelArrows)
   group.traverse((object) => {
     object.updateMatrix()
     object.matrixAutoUpdate = false
@@ -237,6 +241,7 @@ export function buildPath(data: PlanData): LoadedPlan {
     dispose: () => {
       process.geometry.dispose()
       travel.geometry.dispose()
+      failed.geometry.dispose()
       progressGeometry.dispose()
       processArrows.dispose()
       travelArrows.dispose()
