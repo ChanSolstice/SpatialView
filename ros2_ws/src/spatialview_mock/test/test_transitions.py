@@ -143,6 +143,14 @@ def test_task_completes(rig):
 def test_task_interrupted_by_device(rig):
     rig.to_executing()
     rig.run(3.0)
+    rig.send_driver(robot_mode="PowerOff")
+    assert rig.core.phase == Phase.PAUSED  # 执行中被中断：停在已暂停
+    assert result(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_DISABLED)
+
+
+def test_stopping_interrupted_by_device(rig):
+    rig.to_executing()
+    rig.run(3.0)
     rig.core.task_control(Command.STOP, "")
     rig.send_driver(robot_mode="PowerOff")
     assert rig.core.phase == Phase.PLAN_READY

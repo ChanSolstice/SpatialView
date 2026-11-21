@@ -15,6 +15,19 @@ export interface ResultNotice {
   reason: string
   detail: string
   code: string
+  /** 清洗中断：阶段为已暂停时加一行继续或停止的操作提示，见 resultHint。 */
+  resumable: boolean
+}
+
+/** 清洗中断后停在已暂停时的操作提示（需求 5.5；接口文档 6.5"中断后继续"）。 */
+export const RESUME_HINT = '排除故障后点击"继续"，从中断处接着清洗；或点击"停止"结束本次清洗。'
+
+/**
+ * 结果提示框中的操作提示，按当前阶段给出：提示框打开期间任务被停止、继续时随之变化，
+ * 不提示已经不能按的按钮。停止中被中断的清洗回到规划就绪，没有这一行。
+ */
+export function resultHint(notice: ResultNotice, phase: string | undefined): string {
+  return notice.resumable && phase === 'PAUSED' ? RESUME_HINT : ''
 }
 
 const FAILED_TITLE = new Map([
@@ -43,6 +56,7 @@ export function resultNotice(result: OperationResult): ResultNotice | null {
     reason: resultCodeText(code),
     detail,
     code,
+    resumable: operation === 'TASK' && result.result === 'INTERRUPTED',
   })
   switch (result.result) {
     case 'FAILED':

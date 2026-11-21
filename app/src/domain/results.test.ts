@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EMPTY_RESULT } from '../testing/fixtures.ts'
-import { nextResult, resultNotice } from './results.ts'
+import { nextResult, RESUME_HINT, resultHint, resultNotice } from './results.ts'
 
 const result = (operation: string, outcome: string, code = '', detail = '') => ({
   ...EMPTY_RESULT,
@@ -34,6 +34,7 @@ describe('resultNotice：接口文档 8.7 的组合', () => {
       reason,
       detail: '第 3 轴过载',
       code,
+      resumable: operation === 'TASK' && outcome === 'INTERRUPTED',
     })
   })
 
@@ -54,6 +55,25 @@ describe('resultNotice：接口文档 8.7 的组合', () => {
     expect(resultNotice(result('CALIBRATE', 'INTERRUPTED'))?.title).toBe('操作已中断')
     expect(resultNotice(result('TASK', 'FAILED'))?.title).toBe('清洗失败')
     expect(resultNotice(result('TASK', 'CANCELLED'))).toBeNull()
+  })
+})
+
+describe('resultHint：清洗中断后的操作提示（需求 5.5）', () => {
+  const interrupted = resultNotice(result('TASK', 'INTERRUPTED', 'DEVICE_ERROR'))
+  const scanInterrupted = resultNotice(result('SCAN', 'INTERRUPTED', 'ROBOT_ESTOP'))
+
+  it('清洗中断、阶段为已暂停时提示继续或停止', () => {
+    expect(interrupted && resultHint(interrupted, 'PAUSED')).toBe(RESUME_HINT)
+  })
+
+  it('按当前阶段给出：停止中被中断回到规划就绪，或之后已继续、已停止时没有提示', () => {
+    for (const phase of ['PLAN_READY', 'EXECUTING', 'STOPPING', undefined]) {
+      expect(interrupted && resultHint(interrupted, phase)).toBe('')
+    }
+  })
+
+  it('扫描中断等其他结果没有提示', () => {
+    expect(scanInterrupted && resultHint(scanInterrupted, 'PAUSED')).toBe('')
   })
 })
 

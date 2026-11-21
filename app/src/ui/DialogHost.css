@@ -81,6 +81,14 @@
   font-size: 16px;
 }
 
+/* 清洗中断后停在已暂停时的操作提示（前端UI设计 4.4） */
+.dlg-hint {
+  margin-top: 10px;
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.5;
+}
+
 .dlg-code {
   margin-top: 10px;
   color: var(--text-3);

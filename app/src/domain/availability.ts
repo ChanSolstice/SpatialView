@@ -124,7 +124,7 @@ export const LABELS = {
 /** 机械臂启动中时"上电"的进行中文字（需求 5.6）。 */
 export const POWER_ON_PROGRESS = '正在上电…'
 
-/** 规则 6：这些机械臂状态下不能开始扫描、开启激光；开始清洗时列为警告（需求 5.4）。 */
+/** 规则 6：这些机械臂状态下不能开始扫描、开启激光；开始清洗、继续时列为警告（需求 5.4）。 */
 const ROBOT_NOT_READY: ReadonlySet<string> = new Set([
   'FAULT',
   'ESTOP',
@@ -134,8 +134,11 @@ const ROBOT_NOT_READY: ReadonlySet<string> = new Set([
 ])
 /** 规则 6：相机、激光器为这些状态时未就绪。 */
 const DEVICE_NOT_READY: ReadonlySet<string> = new Set(['ERROR', 'OFFLINE'])
-/** 急停引起的中断尚未完成的阶段，不能复位急停、上电（需求 5.6）。 */
-const INTERRUPTING: ReadonlySet<string> = new Set(['SCANNING', 'EXECUTING', 'PAUSED', 'STOPPING'])
+/**
+ * 急停引起的中断尚未完成的阶段，不能复位急停、上电（需求 5.6）。
+ * 清洗被中断后停在已暂停，可以复位、上电，排除故障后继续。
+ */
+const INTERRUPTING: ReadonlySet<string> = new Set(['SCANNING', 'EXECUTING', 'STOPPING'])
 
 export function availability(input: AvailabilityInput): Availability {
   const { state, mode } = input
@@ -215,7 +218,8 @@ export function availability(input: AvailabilityInput): Availability {
     action: mainAction,
     label: LABELS[mainAction],
     enabled: mainEnabled,
-    confirm: mainAction === 'start',
+    // 开始清洗、继续每次确认：机械臂将运动（需求 5.4）
+    confirm: mainAction !== 'pause',
     variant: mainEnabled || mainBusy ? 'primary' : 'normal',
     busy: mainBusy,
   }
@@ -280,12 +284,13 @@ export function isActionAvailable(action: ButtonAction, result: Availability): b
 
 /** 需要确认的操作。 */
 export type ConfirmAction =
-  'scan' | 'plan' | 'start' | 'stop' | 'laserOn' | 'resetEstop' | 'powerOn'
+  'scan' | 'plan' | 'start' | 'resume' | 'stop' | 'laserOn' | 'resetEstop' | 'powerOn'
 
 const CONFIRM_ACTIONS: ReadonlySet<string> = new Set<ConfirmAction>([
   'scan',
   'plan',
   'start',
+  'resume',
   'stop',
   'laserOn',
   'resetEstop',
@@ -310,7 +315,7 @@ export const WORKPIECE_CHOICES: readonly WorkpieceChoice[] = [
 
 export interface Confirmation {
   title: string
-  /** 设备异常的警告，逐行列在正文之前（开始清洗，需求 5.4）。 */
+  /** 设备异常的警告，逐行列在正文之前（开始清洗、继续，需求 5.4）。 */
   warnings: string[]
   lines: string[]
   /** 确认按钮的文字与操作一致（前端UI设计 4.4）。 */
@@ -329,17 +334,25 @@ export const POWER_ON_CONFIRM_DELAY_MS = 1000
 /** 未选择表面时开始规划的对话框标题和确认按钮（需求 5.4）。 */
 export const PLAN_ALL_LABEL = '规划全部'
 
-/** 开始清洗时设备异常的警告（需求 5.4）。APP 不因设备状态禁用开始清洗，改为在确认对话框中列出。 */
-export function startWarnings(state: SystemState | null): string[] {
+/**
+ * 开始清洗、继续时设备异常的警告（需求 5.4）。APP 不因设备状态禁用这两个操作，改为在确认对话框中列出。
+ * 继续时激光器未就绪的，服务端对正常任务拒绝，对整次不出光的任务照常继续（接口文档 6.5）。
+ */
+export function startWarnings(
+  state: SystemState | null,
+  action: 'start' | 'resume' = 'start',
+): string[] {
   if (state === null) return []
   const warnings: string[] = []
   const robot = state.robot_state
   if (ROBOT_NOT_READY.has(robot) && isOneOf(ROBOT_STATES, robot)) {
-    warnings.push(`机械臂未就绪（${ROBOT_VIEW[robot].text}），服务端可能拒绝开始清洗。`)
+    const consequence = action === 'start' ? '服务端可能拒绝开始清洗。' : '服务端可能拒绝继续。'
+    warnings.push(`机械臂未就绪（${ROBOT_VIEW[robot].text}），${consequence}`)
   }
   const laser = state.laser_state
   if (DEVICE_NOT_READY.has(laser) && isOneOf(LASER_STATES, laser)) {
-    warnings.push(`激光器未就绪（${LASER_VIEW[laser].text}），本次清洗不出光，只运行轨迹。`)
+    const consequence = action === 'start' ? '本次清洗不出光，只运行轨迹。' : '服务端可能拒绝继续。'
+    warnings.push(`激光器未就绪（${LASER_VIEW[laser].text}），${consequence}`)
   }
   return warnings
 }
@@ -387,6 +400,11 @@ export function confirmation(
       return {
         ...simple(['机械臂将开始运动，请确认作业区域内无人。是否开始清洗？']),
         warnings: startWarnings(state),
+      }
+    case 'resume':
+      return {
+        ...simple(['机械臂将从暂停处继续清洗，不在该处时先移回。请确认作业区域内无人。是否继续？']),
+        warnings: startWarnings(state, 'resume'),
       }
     case 'stop':
       return simple(['确认停止当前任务？'])

@@ -19,17 +19,27 @@ def power_on(rig, mode="PowerOff"):
 
 
 class TestConditions:
-    @pytest.mark.parametrize("to_phase", ["scanning", "executing", "paused", "stopping"])
+    @pytest.mark.parametrize("to_phase", ["scanning", "executing", "stopping"])
     def test_phase_checked_first(self, rig, to_phase):
         if to_phase == "scanning":
             rig.core.start_scan()
         else:
             rig.to_executing()
-            if to_phase == "paused":
-                rig.core.task_control(Command.PAUSE, "")
-            elif to_phase == "stopping":
+            if to_phase == "stopping":
                 rig.core.task_control(Command.STOP, "")
+        # mock 中设备异常立即中断任务；跳过推进，检查阶段先于机械臂状态检查
+        rig.core._update = lambda: None
+        rig.core.driver.robot_mode = "PowerOff"
+        assert rig.core.robot_state == Robot.DISABLED
         assert rig.core.power_on().code == Code.INVALID_STATE
+        assert rig.hooks.power_on_calls == 0
+
+    def test_accepted_while_paused(self, rig):
+        """清洗被中断或暂停后停在已暂停，可以上电（6.9）。"""
+        rig.to_executing()
+        rig.core.task_control(Command.PAUSE, "")
+        power_on(rig)
+        assert rig.core.phase == Phase.PAUSED
 
     def test_already_started_is_repeated_command(self, rig):
         assert rig.state["robot_state"] == Robot.READY
@@ -164,8 +174,9 @@ class TestProcess:
     def test_does_not_resume_interrupted_task(self, rig):
         rig.to_executing()
         rig.send_driver(robot_mode="PowerOff")
-        assert rig.core.phase == Phase.PLAN_READY
-        rig.core.power_on()
+        assert rig.core.phase == Phase.PAUSED
+        assert rig.core.power_on().code == Code.OK
         rig.send_driver(robot_mode="Running")
-        assert rig.core.phase == Phase.PLAN_READY
+        assert rig.core.phase == Phase.PAUSED
         assert rig.hooks.motion[-1] is False
+        assert last(rig) == ("POWER_ON", "SUCCEEDED", "")

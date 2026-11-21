@@ -154,6 +154,24 @@ describe('已连接', () => {
     })
   })
 
+  it('继续每次确认，设备有异常时列出警告；确认后发送 RESUME（需求 5.4）', async () => {
+    const socket = await connect(stateForPhase('PAUSED', { robot_state: 'FAULT' }))
+    expect(button('main').disabled).toBe(false)
+    fireEvent.click(button('main'))
+    const dialog = screen.getByRole('dialog', { name: '继续' })
+    expect(
+      within(dialog)
+        .queryAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['机械臂未就绪（故障），服务端可能拒绝继续。'])
+    expect(dialog.textContent).toContain(
+      '机械臂将从暂停处继续清洗，不在该处时先移回。请确认作业区域内无人。是否继续？',
+    )
+    expect(socket.calls.some((call) => call.name.endsWith('task_control'))).toBe(false)
+    fireEvent.click(within(dialog).getByRole('button', { name: '继续' }))
+    expect(socket.calls.at(-1)?.request).toEqual({ command: 'RESUME', plan_id: '' })
+  })
+
   it('取消确认不发送', async () => {
     const socket = await connect(stateForPhase('EXECUTING'))
     fireEvent.click(button('stop'))
@@ -251,8 +269,43 @@ describe('已连接', () => {
     const dialog = screen.getByRole('dialog', { name: '清洗已中断' })
     expect(dialog.textContent).toContain('机械臂急停')
     expect(dialog.textContent).toContain('ROBOT_ESTOP')
+    expect(dialog.textContent).not.toContain('排除故障后')
     fireEvent.click(within(dialog).getByRole('button', { name: '确定' }))
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('清洗中断后停在已暂停：提示框加一行继续或停止的说明，阶段变化时随之更新（需求 5.5）', async () => {
+    const socket = await connect(stateForPhase('EXECUTING'))
+    const interrupted = {
+      id: 'session-a-4',
+      operation: 'TASK',
+      result: 'INTERRUPTED',
+      code: 'DEVICE_ERROR',
+      detail: '控制器拒绝执行轨迹',
+      stamp: { sec: 0, nanosec: 0 },
+    }
+    await publish(
+      socket,
+      stateForPhase('PAUSED', {
+        robot_state: 'ESTOP',
+        software_estop: true,
+        last_result: interrupted,
+      }),
+    )
+    const dialog = screen.getByRole('dialog', { name: '清洗已中断' })
+    const hint = '排除故障后点击"继续"，从中断处接着清洗；或点击"停止"结束本次清洗。'
+    const lines = [...dialog.querySelectorAll('.dlg-text, .dlg-detail, .dlg-hint, .dlg-code')]
+    expect(lines.map((line) => line.textContent)).toEqual([
+      '设备执行出错',
+      '控制器拒绝执行轨迹',
+      hint,
+      'DEVICE_ERROR',
+    ])
+    // 清洗被中断后停在已暂停：主按钮为继续，复位急停可用
+    expect(button('main').textContent).toBe('继续')
+    expect(button('stop').disabled).toBe(false)
+    await publish(socket, stateForPhase('PLAN_READY', { last_result: interrupted }))
+    expect(dialog.textContent).not.toContain(hint)
   })
 })
 

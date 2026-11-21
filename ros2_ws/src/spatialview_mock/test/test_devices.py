@@ -2,7 +2,8 @@
 
 import pytest
 
-from spatialview_mock.core.constants import Code, Command, Laser, Phase
+from spatialview_mock.core.constants import Code, Command, Laser, Phase, Robot
+from spatialview_mock.core.machine import InjectError
 
 
 def last(rig):
@@ -68,18 +69,49 @@ def test_computation_unaffected(rig, phase):
     assert rig.core.phase in (Phase.MODEL_READY, Phase.PLAN_READY)
 
 
-@pytest.mark.parametrize("phase", [Phase.EXECUTING, Phase.PAUSED, Phase.STOPPING])
-def test_task_interrupted_by_robot(rig, phase):
+def test_executing_interrupted_by_robot_pauses(rig):
+    """执行中被中断：停在已暂停，保留执行进度和规划（8.4、8.5）。"""
     rig.to_executing()
-    if phase == Phase.PAUSED:
-        rig.core.task_control(Command.PAUSE, "")
-    elif phase == Phase.STOPPING:
-        rig.core.task_control(Command.STOP, "")
+    rig.run(5.0)
+    plan_id = rig.core.plan_id
     rig.send_driver(safety_mode="ProtectiveStop", detail="检测到碰撞")
+    state = rig.state
+    assert state["phase"] == Phase.PAUSED
+    assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_PROTECTIVE_STOP)
+    assert state["laser_state"] == Laser.OFF
+    assert rig.hooks.motion[-1] is False
+    assert state["exec_time"] == pytest.approx(5.0)
+    assert (state["plan_id"], state["model_id"]) == (plan_id, rig.core.model_id)
+    rig.run(3.0)
+    assert rig.state["exec_time"] == pytest.approx(5.0)  # 中断后不增长
+
+
+def test_paused_unaffected_by_robot(rig):
+    """已暂停时出现设备异常：阶段不变，不产生结果（8.4）。"""
+    rig.to_executing()
+    rig.core.task_control(Command.PAUSE, "")
+    results = rig.core.result_count
+    rig.send_driver(safety_mode="ProtectiveStop")
+    rig.core.inject("laser", {"state": "ERROR"})
+    assert rig.state["phase"] == Phase.PAUSED
+    assert rig.core.result_count == results
+
+
+def test_stopping_interrupted_by_robot(rig):
+    rig.to_executing()
+    rig.core.task_control(Command.STOP, "")
+    rig.send_driver(safety_mode="ProtectiveStop")
     assert rig.core.phase == Phase.PLAN_READY
     assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_PROTECTIVE_STOP)
-    assert rig.state["laser_state"] == Laser.OFF
     assert rig.hooks.motion[-1] is False
+
+
+def test_stopping_interrupted_by_laser(rig):
+    rig.to_executing()
+    rig.core.task_control(Command.STOP, "")
+    rig.core.inject("laser", {"state": "OFFLINE"})
+    assert rig.core.phase == Phase.PLAN_READY
+    assert last(rig) == ("TASK", "INTERRUPTED", Code.LASER_OFFLINE)
 
 
 def test_task_unaffected_by_camera_but_interrupted_by_laser(rig):
@@ -87,7 +119,115 @@ def test_task_unaffected_by_camera_but_interrupted_by_laser(rig):
     rig.core.inject("camera", {"state": "ERROR"})
     assert rig.core.phase == Phase.EXECUTING
     rig.core.inject("laser", {"state": "OFFLINE"})
+    assert rig.core.phase == Phase.PAUSED
     assert last(rig) == ("TASK", "INTERRUPTED", Code.LASER_OFFLINE)
+
+
+class TestResumeAfterInterruption:
+    """中断后排除故障，从中断处继续（6.5"中断后继续"）。"""
+
+    def test_estop_reset_resume_completes(self, rig):
+        rig.to_executing()
+        rig.run(30.0)
+        rig.send_driver(software_estop=True)
+        assert rig.core.phase == Phase.PAUSED
+        assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_ESTOP)
+        assert rig.core.task_control(Command.RESUME, "").code == Code.ROBOT_NOT_READY
+        assert rig.core.reset_estop().code == Code.OK
+        rig.send_driver(software_estop=False)
+        assert rig.state["robot_state"] == Robot.PAUSED
+        reply = rig.core.task_control(Command.RESUME, "")
+        assert reply.code == Code.OK
+        assert reply.state["phase"] == Phase.EXECUTING
+        assert reply.state["exec_time"] == pytest.approx(30.0)  # 从中断处继续，不从头开始
+        assert reply.state["laser_state"] == Laser.ON  # 工艺段内由任务重新开启
+        assert rig.hooks.motion[-1] is True
+        rig.run(80.0, step=0.5)
+        assert rig.core.phase == Phase.PLAN_READY
+        assert last(rig) == ("TASK", "SUCCEEDED", "")
+
+    def test_power_off_power_on_resume(self, rig):
+        rig.to_executing()
+        rig.run(5.0)
+        rig.send_driver(robot_mode="PowerOff")
+        assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_DISABLED)
+        assert rig.core.power_on().code == Code.OK
+        rig.send_driver(robot_mode="Running")
+        assert rig.state["phase"] == Phase.PAUSED  # 上电不自动继续
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+
+    def test_laser_must_recover_for_normal_task(self, rig):
+        rig.to_executing()
+        rig.core.inject("laser", {"state": "ERROR"})
+        assert rig.core.phase == Phase.PAUSED
+        assert rig.core.task_control(Command.RESUME, "").code == Code.LASER_NOT_READY
+        rig.core.inject("laser", {"state": "OFFLINE"})
+        assert rig.core.task_control(Command.RESUME, "").code == Code.LASER_NOT_READY
+        rig.core.inject("laser", {"state": "OK"})
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+        assert rig.state["laser_state"] == Laser.ON
+
+    def test_stop_when_robot_cannot_move_completes_immediately(self, rig):
+        rig.to_executing()
+        rig.send_driver(software_estop=True)
+        reply = rig.core.task_control(Command.STOP, "")
+        assert reply.code == Code.OK
+        assert reply.state["phase"] == Phase.PLAN_READY
+        assert last(rig) == ("TASK", "STOPPED", "")
+        rig.core.reset_estop()
+        rig.send_driver(software_estop=False)
+        rig.core.task_control(Command.START, rig.core.plan_id)
+        assert rig.state["exec_time"] == 0.0  # 停止后再开始从头执行
+
+    def test_stop_after_recovery_is_orderly(self, rig):
+        rig.to_executing()
+        rig.send_driver(safety_mode="ProtectiveStop")
+        rig.send_driver(safety_mode="Normal")
+        assert rig.core.task_control(Command.STOP, "").state["phase"] == Phase.STOPPING
+        rig.run(1.0)
+        assert last(rig) == ("TASK", "STOPPED", "")
+
+    def test_scan_and_plan_rejected_while_paused(self, rig):
+        rig.to_executing()
+        rig.send_driver(safety_mode="Fault")
+        rig.send_driver(safety_mode="Normal")
+        assert rig.core.start_scan().code == Code.INVALID_STATE
+        assert rig.core.start_plan(rig.core.model_id, []).code == Code.INVALID_STATE
+
+
+class TestTaskErrorInjection:
+    @pytest.mark.parametrize(
+        "code", [Code.DEVICE_ERROR, Code.MODULE_UNAVAILABLE, Code.INTERNAL_ERROR]
+    )
+    def test_pauses_with_code(self, rig, code):
+        rig.to_executing()
+        rig.run(5.0)
+        rig.core.inject("task_error", {"code": code, "detail": "控制器拒绝轨迹"})
+        state = rig.state
+        assert state["phase"] == Phase.PAUSED
+        assert last(rig) == ("TASK", "INTERRUPTED", code)
+        assert state["last_result"]["detail"] == "控制器拒绝轨迹"
+        assert state["exec_time"] == pytest.approx(5.0)
+        assert state["laser_state"] == Laser.OFF
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+
+    def test_default_code_and_stopping(self, rig):
+        rig.to_executing()
+        rig.core.task_control(Command.STOP, "")
+        rig.core.inject("task_error", {})
+        assert rig.core.phase == Phase.PLAN_READY
+        assert last(rig) == ("TASK", "INTERRUPTED", Code.DEVICE_ERROR)
+
+    def test_invalid(self, rig):
+        with pytest.raises(InjectError):
+            rig.core.inject("task_error", {})  # 不在执行中
+        rig.to_executing()
+        with pytest.raises(InjectError):
+            rig.core.inject("task_error", {"code": Code.ROBOT_FAULT})
+        rig.core.task_control(Command.PAUSE, "")
+        with pytest.raises(InjectError):
+            rig.core.inject("task_error", {})
+        assert rig.core.phase == Phase.PAUSED
 
 
 class TestLaser:
@@ -175,6 +315,16 @@ class TestNoLightTask:
         rig.run(100.0)
         assert last(rig) == ("TASK", "SUCCEEDED", "")
 
+    def test_stopping_unaffected_by_laser(self, rig):
+        rig.to_plan_ready()
+        rig.core.inject("laser", {"state": "OFFLINE"})
+        rig.core.task_control(Command.START, rig.core.plan_id)
+        rig.core.task_control(Command.STOP, "")
+        rig.core.inject("laser", {"state": "ERROR"})
+        assert rig.core.phase == Phase.STOPPING
+        rig.run(1.0)
+        assert last(rig) == ("TASK", "STOPPED", "")
+
     def test_next_task_is_normal(self, rig):
         rig.to_plan_ready()
         rig.core.inject("laser", {"state": "OFFLINE"})
@@ -188,6 +338,7 @@ class TestNoLightTask:
         assert rig.state["laser_state"] == Laser.ON
         rig.core.inject("laser", {"state": "ERROR"})  # 正常任务仍按 8.5 中断
         assert last(rig) == ("TASK", "INTERRUPTED", Code.LASER_ERROR)
+        assert rig.core.phase == Phase.PAUSED
 
     def test_robot_fault_still_interrupts(self, rig):
         rig.to_plan_ready()
@@ -195,3 +346,8 @@ class TestNoLightTask:
         rig.core.task_control(Command.START, rig.core.plan_id)
         rig.send_driver(safety_mode="Fault")
         assert last(rig) == ("TASK", "INTERRUPTED", Code.ROBOT_FAULT)
+        rig.send_driver(safety_mode="Normal")
+        # 整次不出光的任务继续时不检查激光器，仍不出光
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+        rig.run(1.0)
+        assert rig.state["laser_state"] == Laser.OFFLINE

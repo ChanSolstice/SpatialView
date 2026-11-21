@@ -4,7 +4,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { confirmation } from '../domain/availability.ts'
-import type { ResultTone } from '../domain/results.ts'
+import { resultHint, type ResultNotice, type ResultTone } from '../domain/results.ts'
 import type { WorkpieceType } from '../ros/contract.ts'
 import type { Dialog } from '../store/store.ts'
 import { Icon, type IconName } from './Icon.tsx'
@@ -128,28 +128,35 @@ function ConfirmView({ dialog, close }: { dialog: ConfirmDialog; close(): void }
   )
 }
 
+/** 结果提示框（需求 5.5）：原因、补充说明、操作提示（随当前阶段变化）、状态码。 */
+function ResultView({ notice, close }: { notice: ResultNotice; close(): void }) {
+  const phase = useApp((s) => s.server?.phase)
+  const { title, tone, reason, detail, code } = notice
+  const hint = resultHint(notice, phase)
+  const [iconTone, icon] = RESULT_ICON[tone]
+  return (
+    <div className="dlg" role="dialog" aria-label={title}>
+      <Body icon={icon} tone={iconTone} title={title}>
+        {reason && <div className="dlg-text">{reason}</div>}
+        {detail && <div className="dlg-detail">{detail}</div>}
+        {hint && <div className="dlg-hint">{hint}</div>}
+        <Code code={code} />
+      </Body>
+      <div className="dlg-foot">
+        <button type="button" className="dbtn primary" onClick={close}>
+          确定
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function DialogView({ dialog, close }: { dialog: Dialog; close(): void }) {
   switch (dialog.kind) {
     case 'confirm':
       return <ConfirmView key={dialog.id} dialog={dialog} close={close} />
-    case 'result': {
-      const { title, tone, reason, detail, code } = dialog.notice
-      const [iconTone, icon] = RESULT_ICON[tone]
-      return (
-        <div className="dlg" role="dialog" aria-label={title}>
-          <Body icon={icon} tone={iconTone} title={title}>
-            {reason && <div className="dlg-text">{reason}</div>}
-            {detail && <div className="dlg-detail">{detail}</div>}
-            <Code code={code} />
-          </Body>
-          <div className="dlg-foot">
-            <button type="button" className="dbtn primary" onClick={close}>
-              确定
-            </button>
-          </div>
-        </div>
-      )
-    }
+    case 'result':
+      return <ResultView notice={dialog.notice} close={close} />
     case 'info':
       return (
         <div className="dlg" role="dialog" aria-label={dialog.title}>

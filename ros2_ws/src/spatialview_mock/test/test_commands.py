@@ -139,12 +139,33 @@ class TestTaskControl:
         assert rig.core.task_control(Command.RESUME, "").code == Code.INVALID_STATE
         assert rig.core.task_control(Command.START, rig.core.plan_id).code == Code.INVALID_STATE
 
-    def test_resume_after_fault_is_rejected(self, rig):
+    def test_resume_order(self, rig):
+        """RESUME 依次检查阶段、机械臂、正常任务的激光器（6.5）。"""
         rig.to_executing()
         rig.core.task_control(Command.PAUSE, "")
         rig.send_driver(safety_mode="ProtectiveStop")
-        # 故障使任务立即中断，已不在暂停阶段
-        assert rig.core.task_control(Command.RESUME, "").code == Code.INVALID_STATE
+        assert rig.core.phase == Phase.PAUSED  # 已暂停时的故障不改变阶段
+        rig.core.inject("laser", {"state": "ERROR"})
+        assert rig.core.task_control(Command.RESUME, "").code == Code.ROBOT_NOT_READY
+        rig.send_driver(safety_mode="Normal")
+        assert rig.core.task_control(Command.RESUME, "").code == Code.LASER_NOT_READY
+        rig.core.inject("laser", {"state": "OK"})
+        assert rig.core.task_control(Command.RESUME, "").code == Code.OK
+
+    @pytest.mark.parametrize(
+        "change",
+        [
+            {"software_estop": True},
+            {"robot_mode": "PowerOff"},
+            {"robot_mode": "PowerOn"},
+            {"connected": False},
+        ],
+    )
+    def test_resume_rejected_when_robot_not_ready(self, rig, change):
+        rig.to_executing()
+        rig.core.task_control(Command.PAUSE, "")
+        rig.send_driver(**change)
+        assert rig.core.task_control(Command.RESUME, "").code == Code.ROBOT_NOT_READY
 
 
 class TestSetLaser:
@@ -191,9 +212,8 @@ class TestResetEstop:
         assert rig.core.reset_estop().code == Code.DEVICE_ERROR
 
     def test_accept(self, rig):
-        rig.to_executing()
+        rig.to_plan_ready()
         rig.send_driver(software_estop=True)
-        assert rig.core.phase == Phase.PLAN_READY
         assert rig.state["robot_state"] == Robot.ESTOP
         moves = len(rig.hooks.motion)
         reply = rig.core.reset_estop()
@@ -202,3 +222,14 @@ class TestResetEstop:
         assert reply.state["robot_state"] == Robot.READY
         assert reply.state["phase"] == Phase.PLAN_READY  # 作业阶段不变
         assert len(rig.hooks.motion) == moves  # 复位不让机械臂运动
+
+    def test_accept_while_interrupted(self, rig):
+        """清洗被急停中断后停在已暂停，可以复位（6.8）；复位不继续任务。"""
+        rig.to_executing()
+        rig.send_driver(software_estop=True)
+        assert rig.core.phase == Phase.PAUSED
+        moves = len(rig.hooks.motion)
+        reply = rig.core.reset_estop()
+        assert reply.code == Code.OK
+        assert reply.state["phase"] == Phase.PAUSED
+        assert len(rig.hooks.motion) == moves

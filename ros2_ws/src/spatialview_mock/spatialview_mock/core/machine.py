@@ -37,8 +37,11 @@ from spatialview_mock.core.robot import (
 
 IDLE_PHASES = (Phase.NO_MODEL, Phase.MODEL_READY, Phase.PLAN_READY)
 TASK_PHASES = (Phase.EXECUTING, Phase.PAUSED, Phase.STOPPING)
-# PowerOn 不受理的阶段：机械臂正在或将要按任务运动（6.9）
-POWER_ON_BLOCKED_PHASES = (Phase.SCANNING, *TASK_PHASES)
+# 急停引起的中断尚未完成、机械臂正在按任务运动的阶段：不受理 ResetEstop、PowerOn（6.8、6.9）。
+# 清洗被中断后停在已暂停，可以复位和上电
+INTERRUPTING_PHASES = (Phase.SCANNING, Phase.EXECUTING, Phase.STOPPING)
+# 执行出错的原因码（6.5）
+TASK_ERROR_CODES = (Code.DEVICE_ERROR, Code.MODULE_UNAVAILABLE, Code.INTERNAL_ERROR)
 WORKPIECE_TYPES = (WorkpieceType.REVOLVED, WorkpieceType.GENERAL)
 TIMED_PHASES = (Phase.SCANNING, Phase.RECONSTRUCTING, Phase.PLANNING)
 ROBOT_ALARMS = (
@@ -390,6 +393,15 @@ class MockCore:
                 raise InjectError("code 应为 OK 以外的状态码，可以是未知的码")
             inj.next_code = (code, args.get("detail", ""))
             message = f"下一个指令返回 {code}"
+        elif action == "task_error":
+            code = args.get("code") or Code.DEVICE_ERROR
+            if code not in TASK_ERROR_CODES:
+                raise InjectError(f"code 应为 {'、'.join(TASK_ERROR_CODES)} 之一")
+            if self.phase not in (Phase.EXECUTING, Phase.STOPPING):
+                raise InjectError("只能在执行中、停止中注入执行出错")
+            self._update()
+            self._interrupt_task(code, args.get("detail", ""))
+            message = f"执行出错，原因码 {code}"
         elif action == "speed":
             factor = args.get("factor")
             if not isinstance(factor, (int, float)) or isinstance(factor, bool) or factor <= 0:
@@ -503,15 +515,25 @@ class MockCore:
         elif command == Command.RESUME:
             if self.phase != Phase.PAUSED:
                 return self._reject(Code.INVALID_STATE)
-            if self.robot_state != Robot.PAUSED:
+            # 被中断、排除故障后，真实服务端的机械臂通常为 READY；mock 在已暂停时推导为 PAUSED（8.2）
+            if self.robot_state not in (Robot.READY, Robot.PAUSED):
                 return self._reject(Code.ROBOT_NOT_READY)
+            # 正常任务要求激光器可用，避免剩余部分不出光；整次不出光的任务不检查（6.5）
+            if not self.task_no_light and self.laser_state not in (Laser.OFF, Laser.ON):
+                return self._reject(Code.LASER_NOT_READY)
+            # 从暂停或中断处继续。mock 不模拟移回中断处的运动，exec_time 从中断处接着增长
             self.phase = Phase.EXECUTING
             self.exec_updated = now
             self.laser_suppressed = False  # 暂停后继续时由任务恢复激光（6.6）
             self._update_task_laser()
+            self.hooks.set_motion(True)
         else:
             if self.phase not in (Phase.EXECUTING, Phase.PAUSED):
                 return self._reject(Code.INVALID_STATE)
+            if self.robot_state not in MOVABLE_ROBOT_STATES:
+                # 被中断后机械臂仍不能运动（例如急停）：立即完成停止（6.5）
+                self._finish_task(Outcome.STOPPED, "")
+                return self._accept()
             self.phase = Phase.STOPPING
             self.stop_until = now + self.config.stop_seconds / self.config.speed
             self.laser_on = False
@@ -549,7 +571,7 @@ class MockCore:
             return reply
         if not self.driver.software_estop:
             return self._reject(Code.INVALID_STATE)
-        if self.phase in (Phase.SCANNING, *TASK_PHASES):
+        if self.phase in INTERRUPTING_PHASES:
             return self._reject(Code.INVALID_STATE)
         if not self.hooks.clear_estop():
             return self._reject(Code.DEVICE_ERROR, "机械臂驱动没有确认清除锁存")
@@ -560,7 +582,7 @@ class MockCore:
         self._update()
         if (reply := self._injected()) is not None:
             return reply
-        if self.phase in POWER_ON_BLOCKED_PHASES:
+        if self.phase in INTERRUPTING_PHASES:
             return self._reject(Code.INVALID_STATE)
         robot = self.robot_state
         if robot in (*MOVABLE_ROBOT_STATES, Robot.STARTING):
@@ -702,12 +724,23 @@ class MockCore:
             and self.laser_device.health == "OK"
         )
 
-    def _finish_task(self, outcome: str, code: str) -> None:
+    def _finish_task(self, outcome: str, code: str, detail: str = "") -> None:
         self.hooks.set_motion(False)
         self.laser_on = self.laser_manual = self.laser_suppressed = False
         self.task_no_light = False
         self.phase = Phase.PLAN_READY
-        self._result(Operation.TASK, outcome, code, "")
+        self._result(Operation.TASK, outcome, code, detail)
+
+    def _interrupt_task(self, code: str, detail: str = "") -> None:
+        """清洗中断（8.4）：执行中停在已暂停，保留执行进度和规划，排除故障后可以继续；
+        停止中回到规划就绪；已暂停时不变，也不产生结果。"""
+        if self.phase == Phase.EXECUTING:
+            self.hooks.set_motion(False)
+            self.laser_on = self.laser_manual = self.laser_suppressed = False
+            self.phase = Phase.PAUSED
+            self._result(Operation.TASK, Outcome.INTERRUPTED, code, detail)
+        elif self.phase == Phase.STOPPING:
+            self._finish_task(Outcome.INTERRUPTED, code, detail)
 
     def _interrupt_scan(self, code: str) -> None:
         self.hooks.set_motion(False)
@@ -721,20 +754,21 @@ class MockCore:
             reason = robot_reason_code(robot, self.driver.safety_mode)
             if self.phase == Phase.SCANNING:
                 self._interrupt_scan(reason)
-            elif self.phase in TASK_PHASES:
-                self._finish_task(Outcome.INTERRUPTED, reason)
+            else:
+                self._interrupt_task(reason)
             self.laser_on = self.laser_manual = False
         if self.phase == Phase.SCANNING and self.camera.health != "OK":
             code = Code.CAMERA_ERROR if self.camera.health == "ERROR" else Code.CAMERA_OFFLINE
             self._interrupt_scan(code)
-        # 整次不出光的任务不受激光器状态影响（6.5）
+        # 激光器异常中断执行中、停止中的正常任务；整次不出光的任务不受影响（6.5）。
+        # 已暂停时保持已暂停，不产生结果（8.5）
         if (
-            self.phase in TASK_PHASES
+            self.phase in (Phase.EXECUTING, Phase.STOPPING)
             and self.laser_device.health != "OK"
             and not self.task_no_light
         ):
             code = Code.LASER_ERROR if self.laser_device.health == "ERROR" else Code.LASER_OFFLINE
-            self._finish_task(Outcome.INTERRUPTED, code)
+            self._interrupt_task(code)
         # APP 断开：客户端数降为 0，且不在执行中、已暂停、停止中时关闭手动开启的激光
         if self.client_count == 0 and self.laser_manual and self.phase not in TASK_PHASES:
             self.laser_on = self.laser_manual = False

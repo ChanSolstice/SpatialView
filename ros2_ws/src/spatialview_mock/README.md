@@ -93,6 +93,7 @@ ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject \
 | `interlock` | `ok`：布尔；`detail` 可选 | 激光联锁是否满足，不满足时的说明默认为"安全门未关闭" |
 | `module` | `name`：scan、reconstruct、plan、execute；`available`：布尔 | 模块是否可用 |
 | `next_code` | `code`、`detail` 可选 | 下一个指令直接返回这个状态码，状态不变；可以是未知的码 |
+| `task_error` | `code`：DEVICE_ERROR（默认）、MODULE_UNAVAILABLE、INTERNAL_ERROR；`detail` 可选 | 执行出错：执行中停在已暂停，停止中回到规划就绪，结果为 TASK INTERRUPTED；只能在执行中、停止中注入 |
 | `speed` | `factor`：正数 | 耗时和执行的加速倍率 |
 
 ## 与真实服务端的差别
@@ -101,4 +102,5 @@ ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject \
 - 扫描和重建不产生新的几何，每次得到的模型都是同一个样例（ID 不同）。
 - 工件类型只校验和记录，不影响得到的模型。
 - 设备异常引起的中断立即完成；真实服务端最多可以有 2 秒（接口文档 8.5）。
+- 中断后继续时不模拟移回中断处的运动，`exec_time` 直接从中断处接着增长，也不回退；被中断、排除故障后机械臂按 8.2 推导为 PAUSED，真实服务端通常为 READY。
 - 测试见 `test/`：状态机部分不依赖 ROS，在仓库根目录用 `uv run pytest` 运行。

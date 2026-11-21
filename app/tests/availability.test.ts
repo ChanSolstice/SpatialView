@@ -347,12 +347,12 @@ describe('需求 5.4 的确认', () => {
     expect(at('PLAN_READY', {}, { selectionSize: 3 }).buttons.plan.confirm).toBe(true)
   })
 
-  it('开始清洗、停止、开启激光每次确认；暂停、继续、关闭激光、选面、轨迹动画不确认', () => {
+  it('开始清洗、继续、停止、开启激光每次确认；暂停、关闭激光、选面、轨迹动画不确认', () => {
     expect(at('PLAN_READY').buttons.main.confirm).toBe(true)
+    expect(at('PAUSED').buttons.main).toMatchObject({ action: 'resume', confirm: true })
     expect(at('EXECUTING').buttons.stop.confirm).toBe(true)
     expect(at('NO_MODEL').buttons.laser.confirm).toBe(true)
     expect(at('EXECUTING').buttons.main.confirm).toBe(false)
-    expect(at('PAUSED').buttons.main.confirm).toBe(false)
     expect(at('EXECUTING', { laser_state: 'ON' }).buttons.laser.confirm).toBe(false)
     expect(at('PLAN_READY').buttons.select.confirm).toBe(false)
     expect(at('PLAN_READY').buttons.animate.confirm).toBe(false)
@@ -406,6 +406,25 @@ describe('需求 5.4 的确认', () => {
     ).toEqual(['激光器未就绪（异常），本次清洗不出光，只运行轨迹。'])
   })
 
+  it('继续：设备有异常时逐行列出警告，最后一句与需求一致', () => {
+    const [last] = quoted(texts.get('继续') ?? '')
+    const rows = table(requirements, '5.4', 1)
+    expect(rows.header[2]).toBe('继续的警告文字')
+    const [robotRow, laserRow] = rows.rows.map(([, , text]) => text)
+    const plain = confirmation('resume', stateForPhase('PAUSED'), 0)
+    expect(plain).toMatchObject({ title: '继续', lines: [last], warnings: [] })
+    expect(plain.confirmLabel).toBe('继续')
+    // 清洗被中断后停在已暂停，机械臂按实际状态显示；表中以急停、离线为例
+    const both = stateForPhase('PAUSED', { robot_state: 'ESTOP', laser_state: 'OFFLINE' })
+    expect(confirmation('resume', both, 0).warnings).toEqual([robotRow, laserRow])
+    expect(
+      confirmation('resume', stateForPhase('PAUSED', { robot_state: 'FAULT' }), 0).warnings,
+    ).toEqual(['机械臂未就绪（故障），服务端可能拒绝继续。'])
+    expect(
+      confirmation('resume', stateForPhase('PAUSED', { laser_state: 'ERROR' }), 0).warnings,
+    ).toEqual(['激光器未就绪（异常），服务端可能拒绝继续。'])
+  })
+
   it('上电：两次确认，第二次的确认按钮 1 秒后才可以按', () => {
     const [first, second, label] = quoted(texts.get('上电') ?? '')
     expect(texts.get('上电')).toContain('1 秒')
@@ -445,8 +464,9 @@ describe('需求 5.6 的复位急停', () => {
     expect(at('PLAN_READY').reset.visible).toBe(false)
   })
 
+  // 清洗被中断后停在已暂停，可以复位
   it.each(PHASES)('%s', (phase) => {
-    const interrupting = ['SCANNING', 'EXECUTING', 'PAUSED', 'STOPPING'].includes(phase)
+    const interrupting = ['SCANNING', 'EXECUTING', 'STOPPING'].includes(phase)
     expect(at(phase, latched).reset.enabled).toBe(!interrupting)
   })
 
@@ -487,8 +507,9 @@ describe('需求 5.6 的上电', () => {
     }
   })
 
+  // 清洗被中断后停在已暂停，可以上电
   it.each(PHASES)('%s', (phase) => {
-    const interrupting = ['SCANNING', 'EXECUTING', 'PAUSED', 'STOPPING'].includes(phase)
+    const interrupting = ['SCANNING', 'EXECUTING', 'STOPPING'].includes(phase)
     expect(at(phase, disabled).power.enabled).toBe(!interrupting)
   })
 

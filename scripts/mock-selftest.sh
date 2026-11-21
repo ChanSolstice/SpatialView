@@ -119,7 +119,7 @@ plan=$(state plan_id)
 check "规划文件已导出（$plan）" test -f "$FILES/plans/$plan.json"
 
 echo "激光器不可用时的清洗（接口文档 6.5）"
-# 样例的清洗在 10 倍速下只有几秒，这一段改回原速
+# 样例的清洗在 10 倍速下只有几秒，从这里到急停改回原速
 call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'speed', args: '{\"factor\": 1}'}" >/dev/null
 check "激光器离线" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'laser', args: '{\"state\": \"OFFLINE\"}'}")" "ok=True"
 check "激光器离线时开始清洗受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'START', plan_id: '$plan'}")" "code='OK'"
@@ -128,18 +128,26 @@ check "任务继续执行" state_is phase EXECUTING
 check "整次不出光" state_is laser_state OFF
 check "停止受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'STOP', plan_id: ''}")" "code='OK'"
 check "停止后回到规划就绪" eventually phase PLAN_READY
-call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'speed', args: '{\"factor\": 10}'}" >/dev/null
 
 echo "清洗"
 check "开始清洗受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'START', plan_id: '$plan'}")" "code='OK'"
 check "清洗中机械臂为运行中" eventually robot_state RUNNING
 
+echo "执行出错后继续（接口文档 6.5）"
+check "注入执行出错" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'task_error', args: '{\"code\": \"MODULE_UNAVAILABLE\"}'}")" "ok=True"
+check "任务停在已暂停" eventually phase PAUSED
+check "任务中断，原因 MODULE_UNAVAILABLE" has "$(ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null)" "MODULE_UNAVAILABLE"
+check "规划保留" state_is plan_id "$plan"
+check "继续受理" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'RESUME', plan_id: ''}")" "code='OK'"
+check "继续后为执行中" eventually phase EXECUTING
+
 echo "急停"
 check "急停 Service 返回成功" has "$(call /robot_driver/emergency_stop std_srvs/srv/Trigger)" "success=True"
 check "机械臂状态为急停" eventually robot_state ESTOP
 check "software_estop 为 true" state_is software_estop True
+check "任务中断后停在已暂停" eventually phase PAUSED
 check "任务中断，原因 ROBOT_ESTOP" has "$(ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null)" "ROBOT_ESTOP"
-check "锁存期间开始清洗被拒绝" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'START', plan_id: '$plan'}")" "code='ROBOT_NOT_READY'"
+check "锁存期间继续被拒绝" has "$(call /spatialview/task_control spatialview_msgs/srv/TaskControl "{command: 'RESUME', plan_id: ''}")" "code='ROBOT_NOT_READY'"
 
 echo "急停的独立性（接口文档 6.7、14.4）"
 stop server
