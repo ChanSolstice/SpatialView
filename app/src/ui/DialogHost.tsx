@@ -4,8 +4,10 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { confirmation } from '../domain/availability.ts'
+import { rangeLines } from '../domain/planRange.ts'
 import { resultHint, type ResultNotice, type ResultTone } from '../domain/results.ts'
 import type { WorkpieceType } from '../ros/contract.ts'
+import { selectPlanRange } from '../store/selectors.ts'
 import type { Dialog } from '../store/store.ts'
 import { Icon, type IconName } from './Icon.tsx'
 import { useApp, useRuntime } from './runtimeContext.ts'
@@ -128,9 +130,15 @@ function ConfirmView({ dialog, close }: { dialog: ConfirmDialog; close(): void }
   )
 }
 
-/** 结果提示框（需求 5.5）：原因、补充说明、操作提示（随当前阶段变化）、状态码。 */
+/**
+ * 结果提示框（需求 5.5）：原因、补充说明、规划范围的说明（这次规划加载后出现）、操作提示（随当前阶段变化）、
+ * 状态码。
+ */
 function ResultView({ notice, close }: { notice: ResultNotice; close(): void }) {
   const phase = useApp((s) => s.server?.phase)
+  const range = useApp((s) =>
+    notice.planId !== undefined && s.plan.data?.id === notice.planId ? selectPlanRange(s) : null,
+  )
   const { title, tone, reason, detail, code } = notice
   const hint = resultHint(notice, phase)
   const [iconTone, icon] = RESULT_ICON[tone]
@@ -139,6 +147,11 @@ function ResultView({ notice, close }: { notice: ResultNotice; close(): void }) 
       <Body icon={icon} tone={iconTone} title={title}>
         {reason && <div className="dlg-text">{reason}</div>}
         {detail && <div className="dlg-detail">{detail}</div>}
+        {rangeLines(range).map((line) => (
+          <div className="dlg-hint" key={line}>
+            {line}
+          </div>
+        ))}
         {hint && <div className="dlg-hint">{hint}</div>}
         <Code code={code} />
       </Body>

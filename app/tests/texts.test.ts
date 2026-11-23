@@ -1,6 +1,6 @@
 /**
  * 显示文字与文档一致：状态码文字（接口文档第 7 节的"APP 显示"列）、状态显示（需求 4、5.2）、
- * 结果提示框标题（需求 5.5）、机械臂提示（需求 5.6）、本地告警（需求 9.1）。
+ * 结果提示框标题和规划范围的说明（需求 5.5）、机械臂提示（需求 5.6）、本地告警（需求 9.1）。
  */
 import { describe, expect, it } from 'vitest'
 import { LOCAL_ALARMS } from '../src/domain/alarms.ts'
@@ -20,6 +20,7 @@ import {
   ROBOT_VIEW,
   SERVICE_VIEW,
 } from '../src/domain/phase.ts'
+import { EXPANDED_TITLE, rangeLines } from '../src/domain/planRange.ts'
 import { resultNotice } from '../src/domain/results.ts'
 import { EMPTY_RESULT } from '../src/testing/fixtures.ts'
 import { code, column, readDoc, section, table } from './docs.ts'
@@ -144,7 +145,20 @@ describe('需求 5.5 的结果提示框标题', () => {
       '规划失败',
       '上电失败',
       '部分路径未能规划',
+      EXPANDED_TITLE,
     ])
+  })
+
+  it('规划范围的说明与需求一致（数字换成需求中的 N、M、F）', () => {
+    const lines = rangeLines({
+      selected: 7,
+      scope: 8,
+      expanded: new Set(['a']),
+      untraced: new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']),
+    }).map((line) => line.replace('7', 'N').replace('8', 'M').replace('9', 'F'))
+    expect(lines).toHaveLength(2)
+    const text = section(requirements, '5.5')
+    for (const line of lines) expect(text).toContain(`"${line}"`)
   })
 
   it('上电成功不弹提示框', () => {

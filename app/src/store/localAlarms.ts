@@ -1,5 +1,5 @@
 /**
- * 本地告警（需求 7.4、9.1）：由连接状态、模型和规划的加载结果、接口检查、关节名对应得出，
+ * 本地告警（需求 7.4、9.1）：由连接状态、模型和规划的加载结果、模型规模、接口检查、关节名对应得出，
  * 条件变化时写入 store；条件不再成立时消失。
  */
 import type { LocalConditions } from '../domain/alarms.ts'
@@ -7,6 +7,10 @@ import { updateLocalAlarms } from '../domain/alarms.ts'
 import { INTERFACE_VERSION } from '../ros/contract.ts'
 import { selectInterfaceIssue, selectJointMismatch, type InterfaceIssue } from './selectors.ts'
 import type { AppActions, AppState, AppStore } from './store.ts'
+
+/** 接口文档 10.2 约定的模型规模；超过时照常显示，产生本地警告（需求 9.1）。 */
+export const MAX_SURFACES = 500
+export const MAX_TRIANGLES = 300_000
 
 function issueText(issue: InterfaceIssue): string {
   switch (issue.kind) {
@@ -28,6 +32,13 @@ export function localConditions(s: AppState): LocalConditions {
   }
   if (s.model.status === 'error') conditions.APP_MODEL_LOAD_FAILED = s.model.error ?? ''
   if (s.plan.status === 'error') conditions.APP_PLAN_LOAD_FAILED = s.plan.error ?? ''
+  // 超出接口文档 10.2 的规模时照常显示，只提示显示和点选可能变慢
+  const model = s.model.data
+  if (model && (model.surfaces.size > MAX_SURFACES || model.triangles > MAX_TRIANGLES)) {
+    conditions.APP_MODEL_OVERSIZE =
+      `表面 ${model.surfaces.size} 个、三角面 ${model.triangles} 个，约定不超过 ${MAX_SURFACES} 个表面、` +
+      `${MAX_TRIANGLES} 个三角面；显示和点选可能变慢`
+  }
   const issue = selectInterfaceIssue(s)
   if (issue) conditions.APP_INTERFACE_MISMATCH = issueText(issue)
   const missing = selectJointMismatch(s)

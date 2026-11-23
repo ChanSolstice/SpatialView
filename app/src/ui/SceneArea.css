@@ -156,6 +156,39 @@
   content: '';
 }
 
+/* 当前规划的规划范围（需求 6.4）：扩展的表面为浅蓝色块，没有生成路径的表面为红框色块 */
+.toolbar-range {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-right: 8px;
+  color: var(--text-2);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.toolbar-range-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.toolbar-range-item::before {
+  box-sizing: border-box;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  content: '';
+}
+
+.toolbar-range-item.expanded::before {
+  background: var(--expand);
+}
+
+.toolbar-range-item.untraced::before {
+  border: 2px solid var(--danger);
+}
+
 .tool-button {
   display: inline-flex;
   align-items: center;

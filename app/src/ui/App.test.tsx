@@ -274,6 +274,59 @@ describe('已连接', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  describe('规划范围的说明（需求 5.5）', () => {
+    const planned = (code: string) =>
+      stateForPhase('PLAN_READY', {
+        plan_id: 'plan_new_expand',
+        plan_url: '/plans/plan_new_expand.json',
+        plan_surface_ids: ['s1'],
+        last_result: {
+          id: 'session-a-5',
+          operation: 'PLAN',
+          result: 'SUCCEEDED',
+          code,
+          detail: code ? '1 个表面不可达' : '',
+          stamp: { sec: 0, nanosec: 0 },
+        },
+      })
+    const expandedLine =
+      '规划范围按连续曲面从选择的 1 个表面扩展到 2 个，点击"选面"可以查看，扩展的表面为浅蓝色。'
+    const untracedLine = '其中 1 个表面没有生成路径，选面时以红色边框标出。'
+
+    it('部分路径未能规划：规划加载后在状态码上方加上说明，不另外弹框', async () => {
+      const socket = await connect(stateForPhase('MODEL_READY'))
+      await publish(socket, planned('PLAN_PARTIAL'))
+      await flush(10)
+      const dialogs = screen.getAllByRole('dialog')
+      expect(dialogs).toHaveLength(1)
+      const lines = [
+        ...(dialogs[0] as HTMLElement).querySelectorAll('.dlg-detail, .dlg-hint, .dlg-code'),
+      ]
+      expect(lines.map((line) => line.textContent)).toEqual([
+        '1 个表面不可达',
+        expandedLine,
+        untracedLine,
+        'PLAN_PARTIAL',
+      ])
+    })
+
+    it('全部成功但有扩展：弹出信息提示框"规划范围已扩展"', async () => {
+      const socket = await connect(stateForPhase('MODEL_READY'))
+      await publish(socket, planned(''))
+      await flush(10)
+      const dialog = screen.getByRole('dialog', { name: '规划范围已扩展' })
+      expect(dialog.textContent).toContain(expandedLine + untracedLine)
+      fireEvent.click(within(dialog).getByRole('button', { name: '确定' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    it('APP 启动时已有的规划不说明', async () => {
+      await connect(planned(''))
+      await flush(10)
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+  })
+
   it('清洗中断后停在已暂停：提示框加一行继续或停止的说明，阶段变化时随之更新（需求 5.5）', async () => {
     const socket = await connect(stateForPhase('EXECUTING'))
     const interrupted = {
@@ -374,6 +427,28 @@ describe('选面（需求 6.4）', () => {
     })
     await reply(socket, SERVICES.startPlan.name, 'OK', stateForPhase('PLANNING'))
     expect(screen.queryByTestId('selection-toolbar')).toBeNull()
+  })
+
+  it('当前规划有扩展：预先选中有效选择，工具条显示扩展和未生成路径的数量（规划文件没有表面集合时不显示）', async () => {
+    const socket = await connect(stateForPhase('PLAN_READY'))
+    await flush(10)
+    fireEvent.click(button('select'))
+    expect(screen.queryByTestId('plan-range')).toBeNull()
+    const toolbar = screen.getByTestId('selection-toolbar')
+    fireEvent.click(within(toolbar).getByRole('button', { name: '退出选面' }))
+    await publish(
+      socket,
+      stateForPhase('PLAN_READY', {
+        plan_id: 'plan_new_expand',
+        plan_url: '/plans/plan_new_expand.json',
+        plan_surface_ids: ['s1'],
+      }),
+    )
+    await flush(10)
+    fireEvent.click(button('select'))
+    expect(screen.getByTestId('selection-toolbar').textContent).toContain('已选 1 个表面')
+    expect([...runtime.store.getState().selection]).toEqual(['s2'])
+    expect(screen.getByTestId('plan-range').textContent).toBe('当前规划：扩展 1 个未生成路径 1 个')
   })
 
   it('清空选择、退出选面', async () => {

@@ -5,6 +5,7 @@
 import { lazy, Suspense } from 'react'
 import { PROGRESS_TEXT, progressPercent, sceneContent } from '../domain/phase.ts'
 import type { Phase } from '../ros/contract.ts'
+import { selectPlanRange } from '../store/selectors.ts'
 import { Icon } from './Icon.tsx'
 import { AnimationTag, PlayBar } from './PlayBar.tsx'
 import { RobotNotice } from './RobotNotice.tsx'
@@ -85,15 +86,29 @@ function DisconnectMask() {
   )
 }
 
-/** 选面工具条（需求 6.4）：已选 N 个表面 ｜ 清空选择 ｜ 退出选面。 */
+/**
+ * 选面工具条（需求 6.4）：已选 N 个表面 ｜ 当前规划的扩展和未生成路径数量（都为 0 时不显示）｜ 清空选择 ｜ 退出选面。
+ */
 function SelectionToolbar() {
   const { store } = useRuntime()
   const selecting = useApp((s) => s.mode === 'select')
   const count = useApp((s) => s.selection.size)
+  const range = useApp(selectPlanRange)
   if (!selecting) return null
+  const expanded = range?.expanded.size ?? 0
+  const untraced = range?.untraced.size ?? 0
   return (
     <div className="toolbar" data-testid="selection-toolbar">
       <span className="toolbar-count">已选 {count} 个表面</span>
+      {(expanded > 0 || untraced > 0) && (
+        <span className="toolbar-range" data-testid="plan-range">
+          当前规划：
+          {expanded > 0 && <span className="toolbar-range-item expanded">扩展 {expanded} 个</span>}
+          {untraced > 0 && (
+            <span className="toolbar-range-item untraced">未生成路径 {untraced} 个</span>
+          )}
+        </span>
+      )}
       <button
         type="button"
         className="tool-button"

@@ -100,6 +100,46 @@ describe('stateSync（架构设计 5.4）', () => {
       sync(makeState({ seq: 20, last_result: result('r2') }), 'get')
       expect(store.getState().dialogs).toHaveLength(1)
     })
+
+    describe('规划成功时记下 plan_id，规划加载后说明规划范围', () => {
+      const succeeded = (id: string, code = '') => ({
+        ...EMPTY_RESULT,
+        id,
+        operation: 'PLAN',
+        result: 'SUCCEEDED',
+        code,
+      })
+
+      it('全部成功不弹框，只记下 plan_id', () => {
+        sync(makeState({ seq: 1, last_result: result('r1') }), 'get')
+        sync(stateForPhase('PLAN_READY', { seq: 2, last_result: succeeded('r2') }), 'topic')
+        expect(store.getState().dialogs).toEqual([])
+        expect(store.getState().planNotice).toBe('plan_20261015T081000')
+      })
+
+      it('部分路径未能规划的提示框带上 plan_id', () => {
+        sync(makeState({ seq: 1, last_result: result('r1') }), 'get')
+        const state = stateForPhase('PLAN_READY', {
+          seq: 2,
+          last_result: succeeded('r2', 'PLAN_PARTIAL'),
+        })
+        sync(state, 'topic')
+        expect(store.getState().dialogs).toMatchObject([
+          { kind: 'result', notice: { title: '部分路径未能规划', planId: state.plan_id } },
+        ])
+        expect(store.getState().planNotice).toBe(state.plan_id)
+      })
+
+      it('APP 启动后的第一份状态、重复的结果、其他操作的结果都不记', () => {
+        sync(stateForPhase('PLAN_READY', { seq: 1, last_result: succeeded('r1') }), 'get')
+        sync(stateForPhase('PLAN_READY', { seq: 2, last_result: succeeded('r1') }), 'topic')
+        sync(makeState({ seq: 3, last_result: result('r2') }), 'topic')
+        expect(store.getState().planNotice).toBeNull()
+        const [dialog] = store.getState().dialogs
+        expect(dialog?.kind === 'result' && dialog.notice).toMatchObject({ title: '规划失败' })
+        expect(dialog?.kind === 'result' && dialog.notice.planId).toBeUndefined()
+      })
+    })
   })
 })
 

@@ -61,4 +61,13 @@ describe('materialFor', () => {
     expect(materialFor('normal', true, true, true)).toBe(WORKPIECE_MATERIALS.normal)
     expect(materialFor('faded', true, false, true)).toBe(WORKPIECE_MATERIALS.faded)
   })
+
+  it('选面模式中扩展进来的表面：未选中为浅蓝色，选中后与其他选中的表面相同，指向时为悬停色（需求 6.4）', () => {
+    expect(materialFor('selectable', true, false, false, true)).toBe(WORKPIECE_MATERIALS.expanded)
+    expect(WORKPIECE_MATERIALS.expanded.color.getHex()).toBe(0x7fb0ee)
+    expect(materialFor('selectable', true, true, false, true)).toBe(WORKPIECE_MATERIALS.selected)
+    expect(materialFor('selectable', true, false, true, true)).toBe(WORKPIECE_MATERIALS.hover)
+    // 浏览时不区分
+    expect(materialFor('normal', true, false, false, true)).toBe(WORKPIECE_MATERIALS.normal)
+  })
 })

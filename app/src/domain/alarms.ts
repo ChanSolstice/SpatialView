@@ -13,6 +13,7 @@ export const LOCAL_ALARMS = {
   APP_PLAN_LOAD_FAILED: { name: '规划加载失败', level: 'ERROR' },
   APP_INTERFACE_MISMATCH: { name: '接口版本不匹配', level: 'ERROR' },
   APP_PLAN_ROBOT_MISMATCH: { name: '规划数据与机械臂模型不匹配', level: 'WARNING' },
+  APP_MODEL_OVERSIZE: { name: '模型超出规模约定', level: 'WARNING' },
 } as const satisfies Record<string, { name: string; level: AlarmLevel }>
 
 export type LocalAlarmCode = keyof typeof LOCAL_ALARMS

@@ -33,6 +33,8 @@ function workpiece(
 export const WORKPIECE_MATERIALS = {
   normal: workpiece(0xa9b4c0),
   selected: workpiece(0xf28c28, { roughness: 0.5 }),
+  /** 选面模式中当前规划连续扩展进来、当前未选中的表面（需求 6.4）：--expand */
+  expanded: workpiece(0x7fb0ee, { roughness: 0.5 }),
   /** 选面模式中鼠标指向的表面：未选中为浅橙色，已选中为深橙色，表示点击后会选中或取消 */
   hover: workpiece(0xf6c089, { roughness: 0.5 }),
   hoverSelected: workpiece(0xc8640f, { roughness: 0.5 }),
@@ -47,6 +49,17 @@ export const BOUNDARY_MATERIAL = new LineMaterial({
   linewidth: 1.6,
   transparent: true,
   opacity: 0.75,
+})
+
+/**
+ * 选面模式中勾出当前规划中没有生成路径的表面（需求 6.4）：--danger，叠在表面分界线上。分界线是半透明的，
+ * 在不透明物体之后才画；这里也设为 transparent（不透明度仍为 1），与分界线同一批绘制，按 renderOrder 画在其后。
+ */
+export const UNTRACED_MATERIAL = new LineMaterial({
+  color: 0xd93025,
+  linewidth: 3,
+  transparent: true,
+  opacity: 1,
 })
 
 export const PATH_COLORS = {
@@ -84,6 +97,7 @@ export const PATH_MATERIALS = {
 /** 线宽以屏幕像素计的材质，画布尺寸变化时由场景更新分辨率。 */
 export const SCREEN_LINE_MATERIALS: readonly LineMaterial[] = [
   BOUNDARY_MATERIAL,
+  UNTRACED_MATERIAL,
   ...Object.values(PATH_MATERIALS),
 ]
 

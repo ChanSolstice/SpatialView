@@ -17,6 +17,8 @@ export interface ResultNotice {
   code: string
   /** 清洗中断：阶段为已暂停时加一行继续或停止的操作提示，见 resultHint。 */
   resumable: boolean
+  /** 规划成功（部分路径未能规划）时的 plan_id：规划加载后在提示框中加上规划范围的说明（需求 5.5）。 */
+  planId?: string
 }
 
 /** 清洗中断后停在已暂停时的操作提示（需求 5.5；接口文档 6.5"中断后继续"）。 */

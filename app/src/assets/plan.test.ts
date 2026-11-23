@@ -133,6 +133,80 @@ describe('parsePlan：失败路径（接口文档 11.1 的 failed_paths）', () 
   })
 })
 
+describe('parsePlan：有效选择和规划范围（接口文档 11.1、11.2）', () => {
+  const tcp = [pt(0, 0, true), pt(1, 0.1, true)]
+  const failed = (surface: string) => [
+    { surface_id: surface, points: [{ p: [0, 0, 0] }, { p: [1, 0, 0] }] },
+  ]
+  const parse = (extra: Record<string, unknown>) =>
+    parsePlan(plan(tcp, { surface_ids: ['s1', 's3'], ...extra }), IDS, 1)
+
+  it('读出两个集合，去掉重复', () => {
+    const data = parse({
+      selected_surface_ids: ['s1', 's2', 's1'],
+      planning_scope_surface_ids: ['s1', 's2', 's3'],
+      failed_paths: failed('s3'),
+    })
+    expect(data.scope).toEqual({ selected: ['s1', 's2'], planning: ['s1', 's2', 's3'] })
+    expect(data.surfaceIds).toEqual(['s1', 's3'])
+  })
+
+  it('有效选择不要求包含在 surface_ids 内：整个表面都失败的仍是操作员的选择', () => {
+    const data = parse({
+      selected_surface_ids: ['s2'],
+      planning_scope_surface_ids: ['s1', 's2', 's3'],
+    })
+    expect(data.scope?.selected).toEqual(['s2'])
+  })
+
+  it('两个字段都没有时为 null，按旧服务端的规划文件处理', () => {
+    expect(parse({}).scope).toBeNull()
+  })
+
+  it('只有一个字段、不是字符串数组或包含关系不对时加载失败', () => {
+    const fails = (extra: Record<string, unknown>, message: RegExp) =>
+      expect(() => parse(extra)).toThrow(message)
+    fails({ selected_surface_ids: ['s1'] }, /只有 selected_surface_ids/)
+    fails({ planning_scope_surface_ids: ['s1', 's3'] }, /只有 planning_scope_surface_ids/)
+    fails(
+      { selected_surface_ids: 's1', planning_scope_surface_ids: ['s1', 's3'] },
+      /selected_surface_ids 不是字符串数组/,
+    )
+    fails(
+      { selected_surface_ids: ['s1'], planning_scope_surface_ids: ['s1', 3] },
+      /planning_scope_surface_ids 不是字符串数组/,
+    )
+    fails(
+      { selected_surface_ids: ['s2'], planning_scope_surface_ids: ['s1', 's3'] },
+      /有效选择 selected_surface_ids 中的表面 s2 不在规划范围/,
+    )
+    fails(
+      { selected_surface_ids: ['s1'], planning_scope_surface_ids: ['s1'] },
+      /surface_ids 中的表面 s3 不在规划范围/,
+    )
+    fails(
+      {
+        selected_surface_ids: ['s1'],
+        planning_scope_surface_ids: ['s1', 's3'],
+        failed_paths: failed('s9'),
+      },
+      /失败路径的表面 s9 不在规划范围/,
+    )
+    fails(
+      {
+        selected_surface_ids: ['s1'],
+        planning_scope_surface_ids: ['s1', 's3'],
+        failed_paths: [{ points: [{ p: [0, 0, 0] }, { p: [1, 0, 0] }] }],
+      },
+      /失败路径的表面 （空） 不在规划范围/,
+    )
+  })
+
+  it('没有表面集合时不检查失败路径的表面', () => {
+    expect(parse({ failed_paths: failed('s9') }).failed.length).toBe(6)
+  })
+})
+
 describe('parsePlan：方向箭头', () => {
   it('沿同一类线段连续的路程按间距放置，从半个间距处开始，方向为线段方向', () => {
     // 一条 1 米长的工艺段路程，由两段 0.5 米组成

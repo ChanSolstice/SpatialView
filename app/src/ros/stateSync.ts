@@ -61,10 +61,19 @@ export function createStateSync(store: AppStore, options: StateSyncOptions = {})
     s.setServer(state, { sessionId: state.session_id, seq: state.seq })
     if (s.contractError !== null) s.setContractError(null)
 
-    // 6. 操作结果提示框（需求 5.5）
+    // 6. 操作结果提示框（需求 5.5）。规划成功时记下 plan_id，规划加载后说明规划范围（store/listeners.ts）
     const { id, notice } = nextResult(s.lastResultId, state.last_result)
+    const fresh = id !== s.lastResultId && s.lastResultId !== null && id !== ''
+    const result = state.last_result
+    const planId =
+      fresh && result.operation === 'PLAN' && result.result === 'SUCCEEDED' && state.plan_id !== ''
+        ? state.plan_id
+        : null
     if (id !== s.lastResultId) s.setLastResultId(id)
-    if (notice !== null) s.pushDialog({ kind: 'result', notice })
+    if (planId !== null) s.setPlanNotice(planId)
+    if (notice !== null) {
+      s.pushDialog({ kind: 'result', notice: planId !== null ? { ...notice, planId } : notice })
+    }
     return state
   }
 }

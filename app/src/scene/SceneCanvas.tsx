@@ -6,11 +6,13 @@ import { Bvh, OrbitControls } from '@react-three/drei'
 import { Canvas, useThree, type ThreeEvent } from '@react-three/fiber'
 import { useEffect, useMemo, useRef, useState, type ComponentRef } from 'react'
 import { Vector3, type Object3D, type PerspectiveCamera, type Sphere } from 'three'
+import { LineSegments2 } from 'three/examples/jsm/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/examples/jsm/lines/LineSegmentsGeometry.js'
 import { measure, MODEL_DOWNLOADED_MARK } from '../assets/loader.ts'
 import type { LoadedModel } from '../assets/model.ts'
-import { SCREEN_LINE_MATERIALS } from '../assets/materials.ts'
+import { SCREEN_LINE_MATERIALS, UNTRACED_MATERIAL } from '../assets/materials.ts'
 import { sceneContent } from '../domain/phase.ts'
-import { selectAnimationData } from '../store/selectors.ts'
+import { selectAnimationData, selectPlanRange } from '../store/selectors.ts'
 import { useApp, useRuntime } from '../ui/runtimeContext.ts'
 import { animationSphere } from './animation.ts'
 import { defaultCameraPosition, EMPTY_RADIUS, fitDistance } from './camera.ts'
@@ -124,9 +126,11 @@ function surfaceIdOf(object: Object3D): string | null {
   return typeof id === 'string' ? id : null
 }
 
+const NO_SURFACES: ReadonlySet<string> = new Set()
+
 /**
- * 工件：材质随场景模式和选择切换；选面模式中点选表面，按下到抬起移动超过阈值视为拖动（需求 6.2、6.4）。
- * 使用鼠标时预览指向的表面：只替换材质并请求重绘，不经过 React 状态，移动鼠标不重新渲染组件。
+ * 工件：材质随场景模式、选择和当前规划的规划范围切换；选面模式中点选表面，按下到抬起移动超过阈值视为拖动
+ * （需求 6.2、6.4）。使用鼠标时预览指向的表面：只替换材质并请求重绘，不经过 React 状态，移动鼠标不重新渲染组件。
  */
 function Workpiece() {
   const { store, config } = useRuntime()
@@ -134,8 +138,11 @@ function Workpiece() {
   const mode = useApp((s) => s.mode)
   const selection = useApp((s) => s.selection)
   const phase = useApp((s) => s.server?.phase ?? null)
+  const range = useApp(selectPlanRange)
   const invalidate = useThree((s) => s.invalidate)
   const { workpiece } = sceneContent(phase, mode)
+  const expanded = range?.expanded ?? NO_SURFACES
+  const untraced = range?.untraced ?? NO_SURFACES
   const threshold = config.config.scene.tap_threshold_px
   const mousePresent = useMouseSeen()
   const hovered = useRef<string | null>(null)
@@ -147,9 +154,22 @@ function Workpiece() {
 
   useEffect(() => {
     if (!model) return
-    applyAppearance(model, workpiece, selection, hovered.current)
+    applyAppearance(model, workpiece, selection, hovered.current, expanded)
     invalidate()
-  }, [invalidate, model, selection, workpiece])
+  }, [expanded, invalidate, model, selection, workpiece])
+
+  // 当前规划中没有生成路径的表面的红色边框，只在选面模式显示（需求 6.4）；规划或模型变化时重建
+  const outline = useMemo(() => {
+    if (!model || untraced.size === 0) return null
+    const geometry = new LineSegmentsGeometry()
+    geometry.setPositions(model.outline(untraced))
+    const lines = new LineSegments2(geometry, UNTRACED_MATERIAL)
+    lines.name = 'untraced'
+    // 与表面分界线重合，后画以叠在上面
+    lines.renderOrder = 1
+    return lines
+  }, [model, untraced])
+  useEffect(() => () => outline?.geometry.dispose(), [outline])
 
   // 记录模型下载完成到第一次绘制的耗时（需求 12.2），绘制在下一帧完成
   useEffect(() => {
@@ -171,7 +191,7 @@ function Workpiece() {
   const hover = (id: string | null) => {
     if (id === hovered.current) return
     hovered.current = id
-    applyAppearance(model, workpiece, selection, id)
+    applyAppearance(model, workpiece, selection, id, expanded)
     invalidate()
   }
   const move = (event: ThreeEvent<PointerEvent>) => {
@@ -194,6 +214,7 @@ function Workpiece() {
         />
       </Bvh>
       <primitive object={model.boundaries} />
+      {outline && <primitive object={outline} visible={selecting} />}
     </>
   )
 }
