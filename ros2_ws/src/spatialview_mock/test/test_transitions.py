@@ -1,6 +1,9 @@
 """作业阶段的迁移（接口文档 8.4），每一行一个测试。"""
 
+import pytest
+
 from spatialview_mock.core.constants import Code, Command, Laser, Phase
+from spatialview_mock.core.machine import InjectError
 
 
 def result(rig):
@@ -84,7 +87,52 @@ def test_plan_success_and_partial(rig):
     operation, outcome, code = result(rig)
     assert (operation, outcome, code) == ("PLAN", "SUCCEEDED", Code.PLAN_PARTIAL)
     assert rig.state["last_result"]["detail"] == "1 个表面不可达"
-    assert rig.hooks.plans[-1][2:] == (["top_00"], True)  # 规划文件带上失败路径（11.1）
+    assert rig.hooks.plans[-1][2:4] == (["top_00"], True)  # 规划文件带上失败路径（11.1）
+    assert rig.hooks.plans[-1][4:] == (["top_00", "top_01"], ["top_00", "top_01"])
+
+
+def test_plan_expand(rig):
+    """连续扩展（接口文档 6.4）：规划范围加入其后未选的可清洗表面；只有扩展时仍为成功，原因码为空。"""
+    rig.to_model_ready()
+    rig.core.inject("plan_expand", {"count": 1})
+    rig.core.start_plan(rig.core.model_id, ["top_01", "top_01"])
+    rig.run(5.0)
+    assert result(rig) == ("PLAN", "SUCCEEDED", "")
+    assert rig.hooks.plans[-1][2:] == (
+        ["top_01", "top_00"],
+        False,
+        ["top_01"],
+        ["top_01", "top_00"],
+    )
+    assert rig.core.plan_surface_ids == ["top_01", "top_00"]
+    # 只对下一次规划有效
+    rig.core.start_plan(rig.core.model_id, ["top_01"])
+    rig.run(5.0)
+    assert rig.hooks.plans[-1][4:] == (["top_01"], ["top_01"])
+
+
+def test_plan_expand_and_partial(rig):
+    """扩展和部分无法规划同时注入：规划范围中前 keep 个表面有路径，其余算作不可达。"""
+    rig.to_model_ready()
+    rig.core.inject("plan_expand", {"count": 5})  # 可清洗的表面不够时扩展到全部
+    rig.core.inject("plan_partial", {"keep": 2})
+    rig.core.start_plan(rig.core.model_id, ["top_00"])
+    rig.run(5.0)
+    assert result(rig) == ("PLAN", "SUCCEEDED", Code.PLAN_PARTIAL)
+    assert rig.state["last_result"]["detail"] == "1 个表面不可达"
+    assert rig.hooks.plans[-1][2:] == (
+        ["top_00", "top_01"],
+        True,
+        ["top_00"],
+        ["top_00", "top_01", "wall_00"],
+    )
+
+
+def test_plan_expand_injection_arguments(rig):
+    with pytest.raises(InjectError):
+        rig.core.inject("plan_expand", {"count": -1})
+    with pytest.raises(InjectError):
+        rig.core.inject("plan_expand", {"count": True})
 
 
 def test_plan_failure_keeps_old_plan(rig):

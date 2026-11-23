@@ -16,6 +16,8 @@ uv run python -m tools.sample_data --size demo    # 圆台：10 个表面、5,76
 
 另有失败路径 `failed_paths.json`（接口文档 11.1 的 `failed_paths` 格式）：在背向机械臂的两块侧面上往复，模拟规划服务生成了 TCP 路径、但机械臂够不到的情况；块体在 `wall_xmax_00`、`wall_xmax_01` 上，圆台在 `side_00`、`side_01` 上，各约 100–160 点。mock 服务端在部分无法规划时把它写入规划文件。加 `--failed-paths` 时规划文件本身也带上失败路径，可以单独检查 APP 的红色显示。
 
+样例的规划没有连续扩展：有效选择 `selected_surface_ids` 与规划范围 `planning_scope_surface_ids` 相同（接口文档 11.1），为有路径的表面；加 `--failed-paths` 时还包括失败路径所在的表面。连续扩展由 mock 服务端注入（见 `ros2_ws/src/spatialview_mock/README.md`）。
+
 ## 文件校验 `validate`
 
 按接口文档第 10、11 节检查 GLB 和规划文件（接口文档 15.1），服务端可以用它自测导出功能。
@@ -26,12 +28,15 @@ uv run python -m tools.validate --model 模型.glb --plan 规划.json --urdf 机
 
 - 同时给出模型和规划文件时做交叉检查：ID、表面是否存在且可清洗、工艺段 TCP 点是否贴近模型表面。最后一项能发现 Y-up 转换、单位或坐标系不一致。
 - 有失败路径 `failed_paths` 时检查格式、每段至少 2 个点、合计不超过 10 万点（接口文档 11.2）；给出模型时还检查所属表面和点是否贴近模型表面。
+- 检查表面集合 `selected_surface_ids`、`planning_scope_surface_ids`（接口文档 11.2）：两个字段同时给出，不重复；有效选择、`surface_ids` 和失败路径的表面都在规划范围内；给出模型时还检查这些表面存在且可清洗。两个字段都没有时为警告（APP 按旧服务端的规划文件处理）。结果中列出有效选择、规划范围、扩展和没有生成路径的表面数量。
+- 模型超过 500 个表面或 30 万三角面时为警告：服务端照常导出，APP 照常显示并产生本地警告（接口文档 10.2）。
 - 给出 URDF 时检查关节名和关节范围；再给出 TCP 连杆名时，按正运动学核对工具末端是否沿 TCP 路径。
 - 有错误时退出码为 1。同一问题只列出前 5 处，其余计数。
 
 | 参数 | 说明 |
 | --- | --- |
 | `--model-id`、`--plan-id` | 期望的 ID |
+| `--selected` | StartPlan 发送的 `surface_ids`，逗号分隔：检查有效选择是否为去掉重复的请求。规划全部时给 `""`，这时需要同时给出模型，检查有效选择是否为全部可清洗表面 |
 | `--tcp-tolerance` | 工艺段 TCP 点到模型表面的允许距离，默认 0.05 米。TCP 不在工件表面上时调大 |
 | `--fk-tolerance` | 正运动学与 TCP 路径的允许偏差，默认 0.005 米 |
 | `--json` | 以 JSON 输出结果 |

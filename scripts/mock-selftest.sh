@@ -10,8 +10,10 @@ cd "$(dirname "$0")/.."
 ROOT=$PWD
 
 if [ "${1:-}" != "--inside" ]; then
-  # 没有样例，或样例早于失败路径（failed_paths.json）时重新生成
-  grep -qs '"failed_paths"' samples/small/manifest.json || uv run python -m tools.sample_data --size small >/dev/null
+  # 没有样例，或样例早于失败路径（failed_paths.json）、表面集合（selected_surface_ids）时重新生成
+  { grep -qs '"failed_paths"' samples/small/manifest.json &&
+    grep -qs '"selected_surface_ids"' samples/small/plans/*.json; } ||
+    uv run python -m tools.sample_data --size small >/dev/null
   scripts/ros.sh colcon build >/dev/null
   exec scripts/ros.sh bash /ws/scripts/mock-selftest.sh --inside
 fi
@@ -125,6 +127,17 @@ check "部分规划完成后为规划就绪" eventually phase PLAN_READY
 check "结果为 PLAN_PARTIAL" has "$(ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null)" "PLAN_PARTIAL"
 plan=$(state plan_id)
 check "规划文件带失败路径（$plan）" grep -q '"failed_paths":\[{"surface_id":' "$FILES/plans/$plan.json"
+check "注入连续扩展" has "$(call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject "{action: 'plan_expand', args: '{\"count\": 2}'}")" "ok=True"
+check "start_plan 受理（选 1 个表面）" has "$(call /spatialview/start_plan spatialview_msgs/srv/StartPlan "{model_id: '$model', surface_ids: ['top_00_00', 'top_00_00']}")" "code='OK'"
+check "扩展规划完成后为规划就绪" eventually phase PLAN_READY
+check "只有扩展时结果为成功、原因码为空" has "$(ros2 topic echo /spatialview/system_state --once --field last_result 2>/dev/null)" "code: ''"
+plan=$(state plan_id)
+check "规划文件的有效选择为去重的请求，规划范围多 2 个表面（$plan）" python3 -c "
+import json, sys
+p = json.load(open(sys.argv[1]))
+assert p['selected_surface_ids'] == ['top_00_00'], p['selected_surface_ids']
+assert len(p['planning_scope_surface_ids']) == 3 and p['surface_ids'] == p['planning_scope_surface_ids']
+" "$FILES/plans/$plan.json"
 
 echo "激光器不可用时的清洗（接口文档 6.5）"
 # 样例的清洗在 10 倍速下只有几秒，从这里到急停改回原速

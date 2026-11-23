@@ -171,6 +171,12 @@ class TestFailedPaths:
         out, manifest = small_sample
         plan = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
         assert "failed_paths" not in plan and manifest["plan_has_failed_paths"] is False
+        # 没有连续扩展：有效选择、规划范围都与 surface_ids 相同（接口文档 11.1）
+        assert (
+            plan["selected_surface_ids"]
+            == plan["planning_scope_surface_ids"]
+            == plan["surface_ids"]
+        )
         failed = json.loads((out / manifest["failed_paths"]).read_text(encoding="utf-8"))
         assert [f["surface_id"] for f in failed] == ["wall_xmax_00", "wall_xmax_01"]
         assert sum(len(f["points"]) for f in failed) == manifest["failed_points"]
@@ -186,14 +192,20 @@ class TestFailedPaths:
         assert report.ok, report.format()
         assert report.count("warning") == 0, report.format()
         assert "FAILED_NEAR_MODEL" in report.codes("info")
-        # 失败路径的表面没有列入 surface_ids（整个表面都无法执行）
-        assert not {f["surface_id"] for f in plan["failed_paths"]} & set(plan["surface_ids"])
+        # 失败路径的表面没有列入 surface_ids（整个表面都无法执行），但在选择和规划范围内（11.2）
+        failed_surfaces = [f["surface_id"] for f in plan["failed_paths"]]
+        assert not set(failed_surfaces) & set(plan["surface_ids"])
+        scope = plan["surface_ids"] + failed_surfaces
+        assert plan["selected_surface_ids"] == plan["planning_scope_surface_ids"] == scope
 
     def test_demo_failed_paths_near_model(self, demo_sample):
         out, manifest = demo_sample
         failed = json.loads((out / manifest["failed_paths"]).read_text(encoding="utf-8"))
         plan = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
         _, info = validate_model(out / manifest["model"])
-        report = validate_plan(dict(plan, failed_paths=failed), model=info)
+        scope = plan["planning_scope_surface_ids"] + [f["surface_id"] for f in failed]
+        report = validate_plan(
+            dict(plan, failed_paths=failed, planning_scope_surface_ids=scope), model=info
+        )
         assert report.ok, report.format()
         assert "FAILED_NEAR_MODEL" in report.codes("info")

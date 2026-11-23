@@ -160,7 +160,10 @@ def build_plan(
     q: np.ndarray,
     model_id: str,
     plan_id: str,
+    scope: list[str] | None = None,
 ) -> dict:
+    """scope 为规划范围，默认与 surface_ids 相同；样例没有连续扩展，有效选择与规划范围相同（接口文档 11.1）。"""
+    scope = list(scope if scope is not None else surface_ids)
     t = np.round(tcp.t, 4)
     quaternions = np.round(quaternion_xyzw(tcp.rotations), 6)
     positions = np.round(tcp.positions, 6)
@@ -169,6 +172,8 @@ def build_plan(
         "plan_id": plan_id,
         "model_id": model_id,
         "frame_id": "base_link",
+        "selected_surface_ids": scope,
+        "planning_scope_surface_ids": scope,
         "surface_ids": surface_ids,
         "duration": float(t[-1]),
         "joint_trajectory": {
@@ -210,7 +215,7 @@ def generate(
 ) -> dict:
     """生成一组样例，写入 out/models/<model_id>.glb、out/plans/<plan_id>.json、out/manifest.json，以及
     失败路径 out/failed_paths.json（mock 服务端在部分无法规划时写入规划文件）。with_failed_paths 为 True 时，
-    规划文件中也带上失败路径。"""
+    规划文件中也带上失败路径，失败路径的表面也算作选择和规划范围。"""
     size = SIZES[size_name]
     model_id = model_id or size.model_id
     plan_id = plan_id or size.plan_id
@@ -219,8 +224,11 @@ def generate(
 
     surfaces, tcp, planned, failed = size.build()
     q = solve_joint_trajectory(chain, tcp, size.coarse_stride)
-    plan = build_plan(planned, chain, tcp, q, model_id, plan_id)
     failed_json = failed_paths_json(failed)
+    scope = planned
+    if with_failed_paths:
+        scope = list(dict.fromkeys(planned + [f.surface_id for f in failed]))
+    plan = build_plan(planned, chain, tcp, q, model_id, plan_id, scope)
     if with_failed_paths:
         plan["failed_paths"] = failed_json
 

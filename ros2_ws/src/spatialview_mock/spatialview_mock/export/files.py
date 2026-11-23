@@ -1,7 +1,8 @@
 """文件目录：样例模型和规划文件以新的 ID 写入，接口文档第 9 节。
 
 - 路径：models/<model_id>.glb、plans/<plan_id>.json，SystemState 中给出相对路径。
-- 部分无法规划时，规划文件带上样例的失败路径（failed_paths.json，接口文档 11.1 的 failed_paths）。
+- 规划文件写入有效选择和规划范围（接口文档 11.1 的 selected_surface_ids、planning_scope_surface_ids）。
+- 部分无法规划时，规划文件带上样例中规划范围内的失败路径（failed_paths.json，接口文档 11.1 的 failed_paths）。
 - 先写临时文件，写完再重命名为正式文件名。
 - 保留当前和上一份，更早的删除；启动时清空。
 """
@@ -45,7 +46,8 @@ def _with_model_id(data: bytes, model_id: str) -> bytes:
 def _split_plan(text: str) -> tuple[dict, str]:
     """规划文件拆成开头的几个小字段和其余部分，替换 ID 时不必解析整个文件。
 
-    样例由 tools.sample_data 生成，字段顺序固定：plan_id、model_id、frame_id、surface_ids、duration……
+    样例由 tools.sample_data 生成，字段顺序固定：plan_id、model_id、frame_id、selected_surface_ids、
+    planning_scope_surface_ids、surface_ids、duration……
     """
     marker = ',"duration":'
     index = text.find(marker)
@@ -72,8 +74,8 @@ class FileStore:
         self.duration = float(manifest["duration"])
         # 旧版样例没有失败路径
         failed = manifest.get("failed_paths")
-        self.failed_paths = (
-            (sample_dir / failed).read_text(encoding="utf-8").strip() if failed else "[]"
+        self.failed_paths: list[dict] = (
+            json.loads((sample_dir / failed).read_text(encoding="utf-8")) if failed else []
         )
         self.intervals = [(float(a), float(b)) for a, b in manifest["process_intervals"]]
         gltf, _ = _read_glb(self.sample_model)
@@ -115,12 +117,30 @@ class FileStore:
         return ModelFiles(url, dict(self.surfaces))
 
     def write_plan(
-        self, plan_id: str, model_id: str, surface_ids: list[str], partial: bool = False
+        self,
+        plan_id: str,
+        model_id: str,
+        surface_ids: list[str],
+        partial: bool = False,
+        selected: list[str] | None = None,
+        scope: list[str] | None = None,
     ) -> PlanFiles:
-        """partial 为 True（部分无法规划）时带上样例的失败路径，不随未规划的表面变化。"""
-        header = dict(self.plan_header, plan_id=plan_id, model_id=model_id, surface_ids=surface_ids)
+        """selected、scope 为有效选择和规划范围，默认与 surface_ids 相同。partial 为 True（部分无法规划）时
+        带上样例中所在表面在规划范围内的失败路径，不随未规划的表面变化（11.2：失败路径的表面在规划范围内）。"""
+        scope = list(scope if scope is not None else surface_ids)
+        header = dict(
+            self.plan_header,
+            plan_id=plan_id,
+            model_id=model_id,
+            selected_surface_ids=list(selected if selected is not None else scope),
+            planning_scope_surface_ids=scope,
+            surface_ids=surface_ids,
+        )
         text = json.dumps(header, ensure_ascii=False, separators=(",", ":"))[:-1] + self.plan_rest
-        if partial and self.failed_paths != "[]":
-            text = f'{text[:-1]},"failed_paths":{self.failed_paths}}}'
+        in_scope = set(scope)
+        failed = [p for p in self.failed_paths if p.get("surface_id") in in_scope]
+        if partial and failed:
+            failed_text = json.dumps(failed, ensure_ascii=False, separators=(",", ":"))
+            text = f'{text[:-1]},"failed_paths":{failed_text}}}'
         url = self._write("plans", f"{plan_id}.json", text.encode("utf-8"))
         return PlanFiles(url, self.duration, list(self.intervals))

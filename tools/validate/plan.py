@@ -35,9 +35,11 @@ def validate_plan(
     tcp_link: str | None = None,
     expected_plan_id: str | None = None,
     expected_model_id: str | None = None,
+    expected_selected: list[str] | None = None,
     tcp_tolerance: float = 0.05,
     fk_tolerance: float = 0.005,
 ) -> Report:
+    """expected_selected 为 StartPlan 发送的 surface_ids：给出时检查有效选择与之一致（接口文档 6.4）。"""
     report = Report("规划文件" if isinstance(source, dict) else str(source))
     if isinstance(source, dict):
         plan = source
@@ -55,6 +57,7 @@ def validate_plan(
     if plan.get("frame_id") != "base_link":
         report.error("PLAN_FRAME", f'frame_id 为 {plan.get("frame_id")!r}，应为 "base_link"')
     _check_surfaces(report, plan, model)
+    _check_scope(report, plan, model, expected_selected)
     duration = plan.get("duration")
     if not _is_number(duration) or not duration > 0:
         report.error("PLAN_DURATION", f"duration 为 {duration!r}，应为大于 0 的秒数")
@@ -115,6 +118,102 @@ def _check_surfaces(report: Report, plan: dict, model: ModelInfo | None) -> None
             report.error("PLAN_SURFACE_UNKNOWN", f"表面 {surface_id} 不在模型中")
         elif not model.surfaces[surface_id]:
             report.error("PLAN_SURFACE_NOT_SELECTABLE", f"表面 {surface_id} 在模型中标记为不可清洗")
+
+
+def _id_list(report: Report, plan: dict, key: str) -> list[str] | None:
+    value = plan[key]
+    if not (isinstance(value, list) and value and all(isinstance(s, str) and s for s in value)):
+        report.error("SCOPE_FORMAT", f"{key} 应为非空的字符串数组")
+        return None
+    if len(set(value)) != len(value):
+        report.error("SCOPE_DUPLICATE", f"{key} 有重复")
+    return value
+
+
+def _check_scope(
+    report: Report, plan: dict, model: ModelInfo | None, expected_selected: list[str] | None
+) -> None:
+    """表面集合（11.1 的 selected_surface_ids、planning_scope_surface_ids，11.2）：同时给出；有效选择、
+    surface_ids 和失败路径的表面都在规划范围内；都是模型中可清洗的表面。"""
+    has_selected = "selected_surface_ids" in plan
+    has_scope = "planning_scope_surface_ids" in plan
+    if not has_selected and not has_scope:
+        report.warning(
+            "SCOPE_MISSING",
+            "没有 selected_surface_ids 和 planning_scope_surface_ids：按第 13 版实现的服务端必须给出；"
+            "APP 按旧服务端的规划文件处理，不显示扩展",
+        )
+        return
+    if not (has_selected and has_scope):
+        present = "selected_surface_ids" if has_selected else "planning_scope_surface_ids"
+        report.error(
+            "SCOPE_FIELDS",
+            f"只有 {present}：两个字段应同时给出，只有一个时 APP 视为规划加载失败",
+        )
+        return
+    selected = _id_list(report, plan, "selected_surface_ids")
+    scope = _id_list(report, plan, "planning_scope_surface_ids")
+    if selected is None or scope is None:
+        return
+    in_scope = set(scope)
+
+    def outside(code: str, what: str, ids) -> None:
+        missing = [s for s in dict.fromkeys(ids) if s not in in_scope]
+        if missing:
+            report.error(
+                code, f"{what} {'、'.join(missing)} 不在规划范围 planning_scope_surface_ids 中"
+            )
+
+    outside("SELECTED_NOT_IN_SCOPE", "有效选择中的表面", selected)
+    surface_ids = plan.get("surface_ids")
+    if isinstance(surface_ids, list):
+        outside(
+            "SURFACE_NOT_IN_SCOPE",
+            "surface_ids 中的表面",
+            [s for s in surface_ids if isinstance(s, str)],
+        )
+    failed = plan.get("failed_paths")
+    if isinstance(failed, list):
+        outside(
+            "FAILED_PATH_NOT_IN_SCOPE",
+            "失败路径的表面",
+            [
+                p["surface_id"]
+                for p in failed
+                if isinstance(p, dict) and isinstance(p.get("surface_id"), str)
+            ],
+        )
+    if model is not None:
+        for surface_id in dict.fromkeys(selected + scope):
+            if surface_id not in model.surfaces:
+                report.error("SCOPE_SURFACE_UNKNOWN", f"表面集合中的表面 {surface_id} 不在模型中")
+            elif not model.surfaces[surface_id]:
+                report.error(
+                    "SCOPE_SURFACE_NOT_SELECTABLE",
+                    f"表面集合中的表面 {surface_id} 在模型中标记为不可清洗",
+                )
+    if expected_selected is not None:
+        if expected_selected:
+            expected = list(dict.fromkeys(expected_selected))
+        elif model is not None:
+            expected = [s for s, selectable in model.surfaces.items() if selectable]
+        else:
+            expected = None
+        if expected is not None and set(selected) != set(expected):
+            report.error(
+                "SELECTED_MISMATCH",
+                f"有效选择为 {'、'.join(selected)}，按 StartPlan 的请求应为 {'、'.join(expected)}"
+                "（去掉重复；为空时为全部可清洗表面）",
+            )
+    traced = set(surface_ids) if isinstance(surface_ids, list) else set()
+    chosen = set(selected)
+    expanded = [s for s in scope if s not in chosen]
+    untraced = [s for s in scope if s not in traced]
+    report.info(
+        "SCOPE_SUMMARY",
+        f"有效选择 {len(chosen)} 个表面，规划范围 {len(in_scope)} 个（扩展 {len(expanded)} 个），"
+        f"没有生成路径 {len(untraced)} 个" + (f"（{'、'.join(untraced)}）" if untraced else ""),
+    )
 
 
 def _check_times(report: Report, label: str, t: np.ndarray, duration: float | None) -> bool:

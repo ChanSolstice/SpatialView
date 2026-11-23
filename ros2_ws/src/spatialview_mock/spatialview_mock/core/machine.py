@@ -92,7 +92,13 @@ class Hooks(Protocol):
     def clear_files(self) -> None: ...
     def write_model(self, model_id: str) -> ModelFiles: ...
     def write_plan(
-        self, plan_id: str, model_id: str, surface_ids: list[str], partial: bool = False
+        self,
+        plan_id: str,
+        model_id: str,
+        surface_ids: list[str],
+        partial: bool = False,
+        selected: list[str] | None = None,
+        scope: list[str] | None = None,
     ) -> PlanFiles: ...
     def set_motion(self, active: bool) -> None: ...
     def clear_estop(self) -> bool: ...
@@ -140,7 +146,8 @@ class Device:
 @dataclass
 class Injection:
     fail_next: dict[str, tuple[str, str]] = field(default_factory=dict)  # 操作 → (原因码, 补充说明)
-    partial_keep: int | None = None  # 下一次规划只成功前几个表面（PLAN_PARTIAL）
+    partial_keep: int | None = None  # 下一次规划只成功规划范围中的前几个表面（PLAN_PARTIAL）
+    expand_count: int = 0  # 下一次规划按连续扩展多规划几个表面（接口文档 6.4）
     interlock: tuple[bool, str] = (True, "")
     modules: dict[str, bool] = field(default_factory=lambda: dict.fromkeys(MODULES, True))
     next_code: tuple[str, str] | None = None  # 下一个指令直接返回这个状态码
@@ -376,7 +383,13 @@ class MockCore:
             if not isinstance(keep, int) or keep < 0:
                 raise InjectError("keep 应为非负整数")
             inj.partial_keep = keep
-            message = f"下一次规划只成功前 {keep} 个表面"
+            message = f"下一次规划只成功规划范围中的前 {keep} 个表面"
+        elif action == "plan_expand":
+            count = args.get("count", 1)
+            if not isinstance(count, int) or isinstance(count, bool) or count < 0:
+                raise InjectError("count 应为非负整数")
+            inj.expand_count = count
+            message = f"下一次规划把规划范围扩展 {count} 个表面"
         elif action == "interlock":
             ok = args.get("ok")
             if not isinstance(ok, bool):
@@ -685,21 +698,29 @@ class MockCore:
 
     def _finish_plan(self) -> None:
         failure = self.injection.fail_next.pop(Operation.PLAN, None)
-        surfaces = self.pending_surfaces
+        # 有效选择；连续扩展按模型中的顺序加入其后未选的可清洗表面（mock 不判断是否相连，接口文档 6.4）
+        selected = self.pending_surfaces
+        count, self.injection.expand_count = self.injection.expand_count, 0
+        chosen = set(selected)
+        extra = [s for s, ok in self.surfaces.items() if ok and s not in chosen][:count]
+        scope = selected + extra
+        surfaces = scope
         code = detail = ""
         if failure is None and self.injection.partial_keep is not None:
             keep, self.injection.partial_keep = self.injection.partial_keep, None
             if keep <= 0:
                 failure = (Code.NO_SOLUTION, "")
-            elif keep < len(surfaces):
-                code, detail = Code.PLAN_PARTIAL, f"{len(surfaces) - keep} 个表面不可达"
-                surfaces = surfaces[:keep]
+            elif keep < len(scope):
+                code, detail = Code.PLAN_PARTIAL, f"{len(scope) - keep} 个表面不可达"
+                surfaces = scope[:keep]
         plan_id = self._new_id("plan")
         if failure is None:
             try:
-                # 部分无法规划时，规划文件带上失败路径（11.1）
+                # 部分无法规划时，规划文件带上失败路径（11.1）；只有扩展时仍为成功，原因码为空
                 partial = code == Code.PLAN_PARTIAL
-                files = self.hooks.write_plan(plan_id, self.model_id, surfaces, partial)
+                files = self.hooks.write_plan(
+                    plan_id, self.model_id, surfaces, partial, selected=selected, scope=scope
+                )
             except ExportError:
                 failure = (Code.EXPORT_ERROR, "规划文件导出失败")
         if failure is not None:

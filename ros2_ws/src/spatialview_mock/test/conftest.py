@@ -44,11 +44,20 @@ class FakeHooks:
         return ModelFiles(f"/models/{model_id}.glb", dict(SURFACES))
 
     def write_plan(
-        self, plan_id: str, model_id: str, surface_ids: list[str], partial: bool = False
+        self,
+        plan_id: str,
+        model_id: str,
+        surface_ids: list[str],
+        partial: bool = False,
+        selected: list[str] | None = None,
+        scope: list[str] | None = None,
     ) -> PlanFiles:
+        """记录 (plan_id, model_id, surface_ids, partial, 有效选择, 规划范围)。"""
         if self.fail_export:
             raise ExportError("磁盘已满")
-        self.plans.append((plan_id, model_id, list(surface_ids), partial))
+        self.plans.append(
+            (plan_id, model_id, list(surface_ids), partial, list(selected or []), list(scope or []))
+        )
         return PlanFiles(f"/plans/{plan_id}.json", PLAN_DURATION, list(PROCESS_INTERVALS))
 
     def set_motion(self, active: bool) -> None:

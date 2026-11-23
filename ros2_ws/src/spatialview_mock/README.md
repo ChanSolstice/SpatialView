@@ -89,7 +89,8 @@ ros2 service call /spatialview_mock/inject spatialview_mock_msgs/srv/Inject \
 | --- | --- | --- |
 | `camera`、`laser` | `state`：OK、ERROR、OFFLINE | 相机、激光器的状态 |
 | `fail_next` | `operation`：SCAN、RECONSTRUCT、PLAN；`code`、`detail` 可选 | 下一次该操作失败，默认原因码分别为 NO_VALID_DATA、RECONSTRUCT_ERROR、NO_SOLUTION |
-| `plan_partial` | `keep`：整数 | 下一次规划只成功前 `keep` 个表面（PLAN_PARTIAL），规划文件带上样例的失败路径 `failed_paths`；为 0 时规划失败（NO_SOLUTION） |
+| `plan_partial` | `keep`：整数 | 下一次规划只成功规划范围中的前 `keep` 个表面（PLAN_PARTIAL），规划文件带上样例中所在表面在规划范围内的失败路径 `failed_paths`；为 0 时规划失败（NO_SOLUTION） |
+| `plan_expand` | `count`：整数，默认 1 | 下一次规划按连续扩展多规划 `count` 个表面（接口文档 6.4）：按模型中的顺序加入其后未选的可清洗表面，不判断是否相连；规划文件的 `planning_scope_surface_ids` 包括这些表面，`selected_surface_ids` 为去掉重复的请求（规划全部时为全部可清洗表面）。只有扩展时结果仍为 PLAN SUCCEEDED、原因码为空。可以与 `plan_partial` 一起注入 |
 | `interlock` | `ok`：布尔；`detail` 可选 | 激光联锁是否满足，不满足时的说明默认为"安全门未关闭" |
 | `module` | `name`：scan、reconstruct、plan、execute；`available`：布尔 | 模块是否可用 |
 | `next_code` | `code`、`detail` 可选 | 下一个指令直接返回这个状态码，状态不变；可以是未知的码 |

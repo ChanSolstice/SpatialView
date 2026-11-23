@@ -312,7 +312,8 @@ class Checker:
             )
         return body
 
-    def check_files(self, state: dict) -> None:
+    def check_files(self, state: dict, requested: list[str] | None = None) -> None:
+        """requested 为这次规划 StartPlan 发送的 surface_ids，给出时检查规划文件的有效选择。"""
         if state["model_id"] and state["model_id"] == getattr(self, "_checked_model", (None,))[0]:
             model_info = self._checked_model[1]  # 同一个模型只校验一次
         elif state["model_id"]:
@@ -338,6 +339,7 @@ class Checker:
                     tcp_link=self.options.tcp_link,
                     expected_plan_id=state["plan_id"],
                     expected_model_id=state["model_id"],
+                    expected_selected=requested,
                 )
                 self._merge(report, f"规划 {state['plan_id']}")
                 if plan.get("surface_ids") != state["plan_surface_ids"]:
@@ -455,7 +457,7 @@ class Checker:
         if state is None:
             return
         self._expect_result(state, "PLAN", "SUCCEEDED")
-        self.check_files(state)
+        self.check_files(state, requested=[])
         start = {"command": "START", "plan_id": state["plan_id"]}
         if self.command("task_control", "TaskControl", start, ("OK",)) is None:
             return
