@@ -129,8 +129,7 @@
 
 .toolbar {
   display: flex;
-  align-items: center;
-  gap: 8px;
+  flex-direction: column;
   padding: 6px 6px 6px 18px;
   border: 1px solid var(--divider);
   border-radius: 14px;
@@ -156,12 +155,20 @@
   content: '';
 }
 
-/* 当前规划的规划范围（需求 6.4）：扩展的表面为浅蓝色块，没有生成路径的表面为红框色块 */
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 当前规划的规划范围（需求 6.4），工具条的第二行：扩展的表面为浅蓝色块，没有生成路径的表面为红框色块 */
 .toolbar-range {
   display: flex;
   align-items: center;
   gap: 12px;
-  margin-right: 8px;
+  margin: 6px 12px 2px 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--divider);
   color: var(--text-2);
   font-size: 15px;
   white-space: nowrap;
