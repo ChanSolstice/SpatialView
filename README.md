@@ -101,5 +101,5 @@ uv run python -m tools.web_check delivery/spatialview-web-<版本>.tar.gz --pass
 | 分支 | 用途 |
 | --- | --- |
 | `main` | 稳定版本 |
-| `dev` | 开发主线 |
+| `dev` | 开发主线，GitHub 上的默认分支 |
 | `phase/<编号>-<名称>` | 每个阶段一个分支，完成并验证后合并回 `dev`；进度记录在[阶段规划](docs/阶段规划.md) |
