@@ -13,12 +13,14 @@ describe('默认配置 config.json', () => {
     expect(configSchema.safeParse(defaults).success).toBe(true)
   })
 
-  it('与需求 10.2 一致；URDF 在服务端交付前使用开发用模型（app/public/robot/README.md）', () => {
+  it('与需求 10.2 一致；URDF 在服务端交付前使用开发用模型（app/public/robot/README.md），服务端与激光器的通信完成前把激光器视为已连接（阶段规划阶段 12）', () => {
     const block = /```json\n([\s\S]*?)```/.exec(section(readDoc('需求文档.md'), '10.2'))
     const documented = JSON.parse(block?.[1] ?? '{}') as typeof defaults
+    expect(documented.integration.assume_laser_connected).toBe(false)
     expect(defaults).toEqual({
       ...documented,
       robot: { ...documented.robot, urdf: 'robot/aubo_i5H_dev.urdf' },
+      integration: { assume_laser_connected: true },
     })
   })
 

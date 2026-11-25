@@ -122,9 +122,16 @@ def _triangles(nodes: int, triangles_per_node: int) -> bytes:
 
 
 def test_limits():
-    assert "MODEL_SURFACES_LIMIT" in codes(_triangles(501, 1))
-    assert "MODEL_TRIANGLES_LIMIT" in codes(_triangles(1, 300_001))
-    assert codes(_triangles(500, 600)) == set()
+    """超过约定的规模只是警告：服务端照常导出，APP 照常显示（接口文档 10.2）。"""
+
+    def warnings(glb_bytes: bytes) -> set[str]:
+        report, _ = validate_model(glb_bytes)
+        assert report.ok, report.format()
+        return report.codes("warning")
+
+    assert "MODEL_SURFACES_LIMIT" in warnings(_triangles(501, 1))
+    assert "MODEL_TRIANGLES_LIMIT" in warnings(_triangles(1, 300_001))
+    assert warnings(_triangles(500, 600)) == set()
 
 
 def test_y_up_conversion_detected_with_plan(small_glb, small_plan):

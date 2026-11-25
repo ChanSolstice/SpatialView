@@ -1,8 +1,8 @@
 {
   "config_version": 1,
   "server": {
-    "rosbridge_url": "ws://192.168.1.100:9090",
-    "http_base_url": "http://192.168.1.100:8080"
+    "rosbridge_url": "ws://192.168.1.10:9090",
+    "http_base_url": "http://192.168.1.10:8080"
   },
   "timing": {
     "state_timeout_ms": 3000,
@@ -25,5 +25,6 @@
     "grid_size_m": 4.0,
     "grid_cell_m": 0.1
   },
-  "animation": { "speeds": [1, 5, 20] }
+  "animation": { "speeds": [1, 5, 20] },
+  "integration": { "assume_laser_connected": true }
 }

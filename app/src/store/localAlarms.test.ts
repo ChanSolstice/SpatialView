@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import type { LoadedModel } from '../assets/model.ts'
 import { buildPath } from '../assets/path.ts'
 import { parsePlan } from '../assets/plan.ts'
 import { wrapRobot } from '../assets/robot.ts'
+import { INTERFACE_VERSION } from '../ros/contract.ts'
 import { stateForPhase, STATE_IDS } from '../testing/fixtures.ts'
 import { testPlanJson } from '../testing/plan.ts'
 import { testRobotModel } from '../testing/robot.ts'
-import { installLocalAlarms } from './localAlarms.ts'
+import { installLocalAlarms, MAX_SURFACES, MAX_TRIANGLES } from './localAlarms.ts'
 import { selectAlarmSummary } from './selectors.ts'
 import { createAppStore } from './store.ts'
 
@@ -61,8 +63,32 @@ describe('本地告警（需求 7.4、9.1）', () => {
     })
     expect(store.getState().localAlarms[0]).toMatchObject({
       code: 'APP_INTERFACE_MISMATCH',
-      detail: '服务端接口版本 2.0，APP 期望 1.0',
+      detail: `服务端接口版本 2.0，APP 期望 ${INTERFACE_VERSION}`,
     })
+  })
+
+  it('模型超出规模约定（接口文档 10.2）：超过 500 个表面或 30 万三角面时警告，列出数量', () => {
+    const { store } = setup()
+    const model = (surfaces: number, triangles: number) =>
+      ({
+        id: STATE_IDS.model,
+        surfaces: new Map(Array.from({ length: surfaces }, (_, i) => [`s${i}`, {}])),
+        triangles,
+      }) as unknown as LoadedModel
+    const load = (surfaces: number, triangles: number) =>
+      store.getState().setModel({ status: 'ready', data: model(surfaces, triangles) })
+    load(MAX_SURFACES, MAX_TRIANGLES)
+    expect(codes(store)).toEqual([])
+    load(MAX_SURFACES + 1, 1000)
+    expect(store.getState().localAlarms[0]).toMatchObject({
+      code: 'APP_MODEL_OVERSIZE',
+      detail:
+        '表面 501 个、三角面 1000 个，约定不超过 500 个表面、300000 个三角面；显示和点选可能变慢',
+    })
+    load(10, MAX_TRIANGLES + 1)
+    expect(codes(store)).toEqual(['APP_MODEL_OVERSIZE'])
+    load(10, 1000)
+    expect(codes(store)).toEqual([])
   })
 
   it('规划数据与机械臂模型不匹配：列出对不上的关节；Status Bar 计入本地告警', () => {

@@ -139,6 +139,12 @@ describe('Service', () => {
       ...contract.TASK_COMMANDS,
     ])
   })
+
+  it('StartScan 的工件类型取值一致', () => {
+    expect(values(srv('srv/StartScan.srv').request, 'WORKPIECE_TYPE_')).toEqual([
+      ...contract.WORKPIECE_TYPES,
+    ])
+  })
 })
 
 describe('接口文档附录 A 的报文', () => {

@@ -4,6 +4,7 @@
  */
 import { useFrame, useThree } from '@react-three/fiber'
 import { useEffect, useMemo, useRef } from 'react'
+import type { PerspectiveCamera } from 'three'
 import { CSS2DRenderer } from 'three/examples/jsm/renderers/CSS2DRenderer.js'
 import { measure } from '../assets/loader.ts'
 import { PLAN_DOWNLOADED_MARK } from '../assets/planLoader.ts'
@@ -61,6 +62,11 @@ export function TcpPath() {
     showPathLabels(labels, visible)
     invalidate()
   }, [invalidate, labels, plan, progress, visible])
+
+  // 箭头与屏幕平行、大小以屏幕像素计，每次绘制前按相机摆放（前端UI设计第 5 节）
+  useFrame(({ camera, size }) => {
+    if (visible) plan.fitArrows(camera as PerspectiveCamera, size.height)
+  })
 
   // 记录规划文件下载完成到路径第一次绘制的耗时（需求 12.2）；同一份规划只记录一次
   useEffect(() => {

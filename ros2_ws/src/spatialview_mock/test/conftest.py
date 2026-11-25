@@ -25,8 +25,10 @@ class FakeHooks:
         self.motion: list[bool] = []
         self.cleared = 0
         self.models: list[str] = []
-        self.plans: list[tuple[str, str, list[str]]] = []
+        self.plans: list[tuple[str, str, list[str], bool]] = []
         self.clear_estop_result = True
+        self.power_on_result = True
+        self.power_on_calls = 0
         self.fail_export = False
 
     def publish(self, state: dict) -> None:
@@ -41,10 +43,21 @@ class FakeHooks:
         self.models.append(model_id)
         return ModelFiles(f"/models/{model_id}.glb", dict(SURFACES))
 
-    def write_plan(self, plan_id: str, model_id: str, surface_ids: list[str]) -> PlanFiles:
+    def write_plan(
+        self,
+        plan_id: str,
+        model_id: str,
+        surface_ids: list[str],
+        partial: bool = False,
+        selected: list[str] | None = None,
+        scope: list[str] | None = None,
+    ) -> PlanFiles:
+        """记录 (plan_id, model_id, surface_ids, partial, 有效选择, 规划范围)。"""
         if self.fail_export:
             raise ExportError("磁盘已满")
-        self.plans.append((plan_id, model_id, list(surface_ids)))
+        self.plans.append(
+            (plan_id, model_id, list(surface_ids), partial, list(selected or []), list(scope or []))
+        )
         return PlanFiles(f"/plans/{plan_id}.json", PLAN_DURATION, list(PROCESS_INTERVALS))
 
     def set_motion(self, active: bool) -> None:
@@ -52,6 +65,10 @@ class FakeHooks:
 
     def clear_estop(self) -> bool:
         return self.clear_estop_result
+
+    def power_on(self) -> bool:
+        self.power_on_calls += 1
+        return self.power_on_result
 
 
 class Rig:

@@ -31,14 +31,21 @@ export function testPlatform(): TestPlatform {
   }
 }
 
+/** 以 _expand 结尾的规划：选了 s2，规划范围扩展进 s1，s2 整个表面没有生成路径（接口文档 11.1）。 */
+export const EXPANDED_PLAN = { surfaceIds: ['s1'], selected: ['s2'], planning: ['s1', 's2'] }
+
 /**
  * 文件服务的替身：/models/<model_id>.glb 返回一个有两个可选表面、一个不可选表面的模型；
- * /plans/<plan_id>.json 返回测试用的规划（model_id 为测试状态中的模型）。
+ * /plans/<plan_id>.json 返回测试用的规划（model_id 为测试状态中的模型），plan_id 以 _expand 结尾的
+ * 带上 EXPANDED_PLAN 的表面集合。
  */
 export const serveFiles = (async (input: RequestInfo | URL) => {
   const plan = /\/plans\/([\w-]+)\.json$/.exec(String(input))
   if (plan?.[1]) {
-    return new Response(JSON.stringify(testPlanJson({ planId: plan[1], modelId: STATE_IDS.model })))
+    const options = plan[1].endsWith('_expand') ? EXPANDED_PLAN : {}
+    return new Response(
+      JSON.stringify(testPlanJson({ planId: plan[1], modelId: STATE_IDS.model, ...options })),
+    )
   }
   const match = /\/models\/([\w-]+)\.glb$/.exec(String(input))
   if (!match) return new Response(null, { status: 404 })

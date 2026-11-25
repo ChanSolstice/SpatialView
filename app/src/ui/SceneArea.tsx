@@ -5,6 +5,7 @@
 import { lazy, Suspense } from 'react'
 import { PROGRESS_TEXT, progressPercent, sceneContent } from '../domain/phase.ts'
 import type { Phase } from '../ros/contract.ts'
+import { selectPlanRange } from '../store/selectors.ts'
 import { Icon } from './Icon.tsx'
 import { AnimationTag, PlayBar } from './PlayBar.tsx'
 import { RobotNotice } from './RobotNotice.tsx'
@@ -85,31 +86,48 @@ function DisconnectMask() {
   )
 }
 
-/** 选面工具条（需求 6.4）：已选 N 个表面 ｜ 清空选择 ｜ 退出选面。 */
+/**
+ * 选面工具条（需求 6.4）：已选 N 个表面 ｜ 清空选择 ｜ 退出选面；当前规划有扩展或没有生成路径的表面时，第二行显示这两个
+ * 数量。放在第二行，数量多时工具条也不会变宽、挡住右上角的恢复默认视角。
+ */
 function SelectionToolbar() {
   const { store } = useRuntime()
   const selecting = useApp((s) => s.mode === 'select')
   const count = useApp((s) => s.selection.size)
+  const range = useApp(selectPlanRange)
   if (!selecting) return null
+  const expanded = range?.expanded.size ?? 0
+  const untraced = range?.untraced.size ?? 0
   return (
     <div className="toolbar" data-testid="selection-toolbar">
-      <span className="toolbar-count">已选 {count} 个表面</span>
-      <button
-        type="button"
-        className="tool-button"
-        onClick={() => store.getState().setSelection(new Set())}
-      >
-        <Icon name="clear" />
-        清空选择
-      </button>
-      <button
-        type="button"
-        className="tool-button"
-        onClick={() => store.getState().setMode('browse')}
-      >
-        <Icon name="close" />
-        退出选面
-      </button>
+      <div className="toolbar-row">
+        <span className="toolbar-count">已选 {count} 个表面</span>
+        <button
+          type="button"
+          className="tool-button"
+          onClick={() => store.getState().setSelection(new Set())}
+        >
+          <Icon name="clear" />
+          清空选择
+        </button>
+        <button
+          type="button"
+          className="tool-button"
+          onClick={() => store.getState().setMode('browse')}
+        >
+          <Icon name="close" />
+          退出选面
+        </button>
+      </div>
+      {(expanded > 0 || untraced > 0) && (
+        <div className="toolbar-range" data-testid="plan-range">
+          当前规划：
+          {expanded > 0 && <span className="toolbar-range-item expanded">扩展 {expanded} 个</span>}
+          {untraced > 0 && (
+            <span className="toolbar-range-item untraced">未生成路径 {untraced} 个</span>
+          )}
+        </div>
+      )}
     </div>
   )
 }

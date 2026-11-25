@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/StatusCode.msg"
   "msg/SystemState.msg"
   "srv/GetSystemState.srv"
+  "srv/PowerOn.srv"
   "srv/ResetEstop.srv"
   "srv/SetLaser.srv"
   "srv/StartPlan.srv"

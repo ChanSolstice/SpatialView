@@ -25,6 +25,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--model-id", help="期望的 model_id")
     parser.add_argument("--plan-id", help="期望的 plan_id")
     parser.add_argument(
+        "--selected",
+        metavar="ID,ID,...",
+        help='StartPlan 发送的 surface_ids，逗号分隔；规划全部时给 ""。检查规划文件的有效选择与之一致',
+    )
+    parser.add_argument(
         "--tcp-tolerance",
         type=float,
         default=0.05,
@@ -56,6 +61,9 @@ def main(argv: list[str] | None = None) -> int:
                 tcp_link=args.tcp_link,
                 expected_plan_id=args.plan_id,
                 expected_model_id=args.model_id,
+                expected_selected=None
+                if args.selected is None
+                else [s for s in args.selected.split(",") if s],
                 tcp_tolerance=args.tcp_tolerance,
                 fk_tolerance=args.fk_tolerance,
             )

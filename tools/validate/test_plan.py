@@ -11,6 +11,15 @@ def errors(plan, **kwargs) -> set[str]:
     return validate_plan(plan, **kwargs).codes("error")
 
 
+def with_failed(plan: dict, failed: list) -> dict:
+    """加上失败路径，失败路径的表面也算作选择和规划范围（11.2：失败路径的表面在规划范围内）。"""
+    surfaces = [p.get("surface_id") for p in failed if isinstance(p, dict)]
+    scope = list(dict.fromkeys(plan["planning_scope_surface_ids"] + [s for s in surfaces if s]))
+    return dict(
+        plan, failed_paths=failed, selected_surface_ids=scope, planning_scope_surface_ids=scope
+    )
+
+
 @pytest.fixture(scope="module")
 def model_info(small_glb):
     return validate_model(small_glb)[1]
@@ -105,6 +114,129 @@ def test_ids_frame_and_surfaces(small_plan, model_info):
     } <= found
 
 
+class TestFailedPaths:
+    """失败路径（接口文档 11.1 的 failed_paths，可选；11.2 的要求）。"""
+
+    def test_valid(self, small_plan, small_failed_paths, model_info):
+        report = validate_plan(with_failed(small_plan, small_failed_paths), model=model_info)
+        assert report.ok, report.format()
+        assert report.count("warning") == 0, report.format()
+        assert {"FAILED_PATHS_SUMMARY", "FAILED_NEAR_MODEL"} <= report.codes("info")
+
+    def test_optional(self, small_plan):
+        report = validate_plan(dict(small_plan, failed_paths=[]))
+        assert report.ok and "FAILED_PATHS_SUMMARY" not in report.codes("info")
+        report = validate_plan(dict(small_plan, failed_paths=None))
+        assert report.ok and "FAILED_PATHS" in report.codes("warning")
+
+    def test_format(self, small_plan, small_failed_paths):
+        assert "FAILED_PATHS" in errors(dict(small_plan, failed_paths={}))
+        path = small_failed_paths[0]
+        path["surface_id"] = ""
+        path["points"][3]["p"] = [0.0, 0.0]
+        small_plan["failed_paths"] = small_failed_paths
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+        small_plan["failed_paths"] = [{"surface_id": "wall_xmax_00", "points": {}}]
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+        small_plan["failed_paths"] = [
+            {"surface_id": "wall_xmax_00", "points": [{"p": [0, 0, math.inf]}, {"p": [0, 0, 0]}]}
+        ]
+        assert "FAILED_PATH_FORMAT" in errors(small_plan)
+
+    def test_at_least_two_points(self, small_plan, small_failed_paths):
+        small_failed_paths[1]["points"] = small_failed_paths[1]["points"][:1]
+        assert errors(with_failed(small_plan, small_failed_paths)) == {"FAILED_PATH_POINTS"}
+
+    def test_point_limit(self, small_plan):
+        points = [{"p": [0.64, 0.0, 0.05]} for _ in range(100_001)]
+        plan = with_failed(small_plan, [{"surface_id": "wall_xmax_00", "points": points}])
+        assert "POINTS_LIMIT" in errors(plan)
+
+    def test_surfaces_and_position(self, small_plan, small_failed_paths, model_info):
+        small_failed_paths[0]["surface_id"] = "wall_zz"
+        small_failed_paths[1]["surface_id"] = "wall_ymax_00"
+        plan = with_failed(small_plan, small_failed_paths)
+        assert {"FAILED_PATH_SURFACE_UNKNOWN", "FAILED_PATH_SURFACE_NOT_SELECTABLE"} <= errors(
+            plan, model=model_info
+        )
+        for path in small_failed_paths:
+            for point in path["points"]:
+                point["p"][2] += 1.0
+        assert "FAILED_FAR_FROM_MODEL" in errors(plan, model=model_info)
+
+
+class TestScope:
+    """表面集合（接口文档 11.1 的 selected_surface_ids、planning_scope_surface_ids；11.2 的要求）。"""
+
+    def test_valid(self, small_plan, model_info):
+        report = validate_plan(small_plan, model=model_info)
+        assert report.ok and report.count("warning") == 0, report.format()
+        summary = [i.message for i in report.issues if i.code == "SCOPE_SUMMARY"]
+        assert summary == ["有效选择 20 个表面，规划范围 20 个（扩展 0 个），没有生成路径 0 个"]
+
+    def test_expanded_and_untraced(self, small_plan, model_info):
+        # 选了 top_00_00 和 wall_xmax_00，扩展进其余 19 个顶面；wall_xmax_00 整个表面没有生成轨迹
+        small_plan["selected_surface_ids"] = ["top_00_00", "wall_xmax_00"]
+        small_plan["planning_scope_surface_ids"] = small_plan["surface_ids"] + ["wall_xmax_00"]
+        report = validate_plan(small_plan, model=model_info)
+        assert report.ok, report.format()
+        summary = [i.message for i in report.issues if i.code == "SCOPE_SUMMARY"]
+        assert summary == [
+            "有效选择 2 个表面，规划范围 21 个（扩展 19 个），没有生成路径 1 个（wall_xmax_00）"
+        ]
+
+    def test_missing(self, small_plan):
+        del small_plan["selected_surface_ids"], small_plan["planning_scope_surface_ids"]
+        report = validate_plan(small_plan)
+        assert report.ok and "SCOPE_MISSING" in report.codes("warning")
+
+    def test_only_one(self, small_plan):
+        plan = dict(small_plan)
+        del plan["selected_surface_ids"]
+        assert errors(plan) == {"SCOPE_FIELDS"}
+        del small_plan["planning_scope_surface_ids"]
+        assert errors(small_plan) == {"SCOPE_FIELDS"}
+
+    def test_format(self, small_plan):
+        assert "SCOPE_FORMAT" in errors(dict(small_plan, selected_surface_ids=[]))
+        assert "SCOPE_FORMAT" in errors(
+            dict(small_plan, planning_scope_surface_ids=["top_00_00", 3])
+        )
+        scope = small_plan["planning_scope_surface_ids"]
+        assert "SCOPE_DUPLICATE" in errors(
+            dict(small_plan, planning_scope_surface_ids=scope + scope[:1])
+        )
+
+    def test_containment(self, small_plan, small_failed_paths, model_info):
+        scope = small_plan["surface_ids"][1:]
+        plan = dict(
+            small_plan,
+            selected_surface_ids=small_plan["surface_ids"][:1],
+            planning_scope_surface_ids=scope,
+            failed_paths=small_failed_paths,
+        )
+        assert {
+            "SELECTED_NOT_IN_SCOPE",
+            "SURFACE_NOT_IN_SCOPE",
+            "FAILED_PATH_NOT_IN_SCOPE",
+        } <= errors(plan)
+
+    def test_model_surfaces(self, small_plan, model_info):
+        scope = small_plan["planning_scope_surface_ids"] + ["nowhere", "bottom"]
+        found = errors(dict(small_plan, planning_scope_surface_ids=scope), model=model_info)
+        assert {"SCOPE_SURFACE_UNKNOWN", "SCOPE_SURFACE_NOT_SELECTABLE"} <= found
+
+    def test_expected_selected(self, small_plan, model_info):
+        ids = small_plan["surface_ids"]
+        assert not errors(small_plan, expected_selected=ids + ids[:1])
+        assert "SELECTED_MISMATCH" in errors(small_plan, expected_selected=ids[:1])
+        # 规划全部：有效选择应为全部可清洗表面
+        selectable = [s for s, ok in model_info.surfaces.items() if ok]
+        assert (
+            "SELECTED_MISMATCH" in errors(small_plan, model=model_info, expected_selected=[])
+        ) == (set(selectable) != set(ids))
+
+
 def test_forward_kinematics_mismatch(small_plan, robot):
     # 工具实际长 0.17 米而 URDF 写 0.15 米：TCP 路径整体比正运动学低 2 厘米
     for point in small_plan["tcp_path"]["points"]:
@@ -118,6 +250,10 @@ def test_cli(small_sample, tmp_path, capsys):
     model, plan = str(out / manifest["model"]), str(out / manifest["plan"])
     assert main(["--model", model, "--plan", plan]) == 0
     assert "0 个错误" in capsys.readouterr().out
+    selected = ",".join(json.loads((out / manifest["plan"]).read_text())["selected_surface_ids"])
+    assert main(["--plan", plan, "--selected", selected]) == 0
+    assert main(["--plan", plan, "--selected", "top_00"]) == 1
+    assert "SELECTED_MISMATCH" in capsys.readouterr().out
     broken = tmp_path / "broken.json"
     data = json.loads((out / manifest["plan"]).read_text(encoding="utf-8"))
     data["frame_id"] = "map"

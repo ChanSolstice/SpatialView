@@ -5,7 +5,7 @@
 import { z } from 'zod'
 
 /** APP 期望的接口版本（接口文档第 3 节）。主版本号不一致时，除急停和关闭激光外的指令不可用。 */
-export const INTERFACE_VERSION = '1.0'
+export const INTERFACE_VERSION = '1.1'
 
 export const ROBOT_STATES = [
   'READY',
@@ -14,6 +14,7 @@ export const ROBOT_STATES = [
   'FAULT',
   'ESTOP',
   'DISABLED',
+  'STARTING',
   'OFFLINE',
 ] as const
 export const CAMERA_STATES = ['OK', 'ERROR', 'OFFLINE'] as const
@@ -30,9 +31,11 @@ export const PHASES = [
   'STOPPING',
 ] as const
 export const ALARM_LEVELS = ['WARNING', 'ERROR'] as const
-export const OPERATIONS = ['SCAN', 'RECONSTRUCT', 'PLAN', 'TASK'] as const
+export const OPERATIONS = ['SCAN', 'RECONSTRUCT', 'PLAN', 'TASK', 'POWER_ON'] as const
 export const RESULTS = ['SUCCEEDED', 'FAILED', 'INTERRUPTED', 'STOPPED'] as const
 export const TASK_COMMANDS = ['START', 'PAUSE', 'RESUME', 'STOP'] as const
+/** StartScan 的工件类型（接口文档 6.3）：旋转体、通用。 */
+export const WORKPIECE_TYPES = ['REVOLVED', 'GENERAL'] as const
 
 export type RobotState = (typeof ROBOT_STATES)[number]
 export type CameraState = (typeof CAMERA_STATES)[number]
@@ -42,6 +45,7 @@ export type AlarmLevel = (typeof ALARM_LEVELS)[number]
 export type Operation = (typeof OPERATIONS)[number]
 export type Result = (typeof RESULTS)[number]
 export type TaskCommand = (typeof TASK_COMMANDS)[number]
+export type WorkpieceType = (typeof WORKPIECE_TYPES)[number]
 
 /** 7.1 指令状态码：指令 Service 响应中的 code。 */
 export const COMMAND_CODES = [
@@ -146,6 +150,7 @@ export const SERVICES = {
   taskControl: { name: '/spatialview/task_control', type: 'spatialview_msgs/srv/TaskControl' },
   setLaser: { name: '/spatialview/set_laser', type: 'spatialview_msgs/srv/SetLaser' },
   resetEstop: { name: '/spatialview/reset_estop', type: 'spatialview_msgs/srv/ResetEstop' },
+  powerOn: { name: '/spatialview/power_on', type: 'spatialview_msgs/srv/PowerOn' },
 } as const
 
 /** 机械臂驱动的急停 Service（接口文档 6.7），名称已由服务端团队确认。 */
@@ -200,7 +205,7 @@ export const systemStateSchema = z.object({
   last_result: operationResultSchema,
 })
 
-/** 五个指令 Service 的响应（接口文档 6.1）。 */
+/** 六个指令 Service 的响应（接口文档 6.1）。 */
 export const commandResponseSchema = z.object({
   code: z.string(),
   detail: z.string(),
@@ -221,6 +226,9 @@ export type GetSystemStateResponse = z.infer<typeof getSystemStateResponseSchema
 export type TriggerResponse = z.infer<typeof triggerResponseSchema>
 
 export type EmptyRequest = Record<string, never>
+export interface StartScanRequest {
+  workpiece_type: WorkpieceType
+}
 export interface StartPlanRequest {
   model_id: string
   surface_ids: string[]
@@ -236,9 +244,10 @@ export interface SetLaserRequest {
 /** 各 Service 的请求字段，用于与 .srv 对照。 */
 export const REQUEST_FIELDS: Record<keyof typeof SERVICES, readonly string[]> = {
   getSystemState: [],
-  startScan: [],
+  startScan: ['workpiece_type'],
   startPlan: ['model_id', 'surface_ids'],
   taskControl: ['command', 'plan_id'],
   setLaser: ['on'],
   resetEstop: [],
+  powerOn: [],
 }

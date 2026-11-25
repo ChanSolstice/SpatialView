@@ -1,6 +1,6 @@
 /**
  * 显示文字与文档一致：状态码文字（接口文档第 7 节的"APP 显示"列）、状态显示（需求 4、5.2）、
- * 结果提示框标题（需求 5.5）、机械臂提示（需求 5.6）、本地告警（需求 9.1）。
+ * 结果提示框标题和规划范围的说明（需求 5.5）、机械臂提示（需求 5.6）、本地告警（需求 9.1）。
  */
 import { describe, expect, it } from 'vitest'
 import { LOCAL_ALARMS } from '../src/domain/alarms.ts'
@@ -20,6 +20,7 @@ import {
   ROBOT_VIEW,
   SERVICE_VIEW,
 } from '../src/domain/phase.ts'
+import { EXPANDED_TITLE, rangeLines } from '../src/domain/planRange.ts'
 import { resultNotice } from '../src/domain/results.ts'
 import { EMPTY_RESULT } from '../src/testing/fixtures.ts'
 import { code, column, readDoc, section, table } from './docs.ts'
@@ -128,6 +129,7 @@ describe('需求 5.5 的结果提示框标题', () => {
     ['RECONSTRUCT', 'FAILED', 'RECONSTRUCT_ERROR'],
     ['PLAN', 'FAILED', 'NO_SOLUTION'],
     ['PLAN', 'SUCCEEDED', 'PLAN_PARTIAL'],
+    ['POWER_ON', 'FAILED', 'ROBOT_ESTOP'],
   ])('%s %s %s', (operation, result, reason) => {
     const notice = resultNotice({ ...EMPTY_RESULT, id: 'r', operation, result, code: reason })
     expect(titles).toContain(notice?.title)
@@ -141,8 +143,28 @@ describe('需求 5.5 的结果提示框标题', () => {
       '扫描失败',
       '重建失败',
       '规划失败',
-      '部分表面未能规划',
+      '上电失败',
+      '部分路径未能规划',
+      EXPANDED_TITLE,
     ])
+  })
+
+  it('规划范围的说明与需求一致（数字换成需求中的 N、M、F）', () => {
+    const lines = rangeLines({
+      selected: 7,
+      scope: 8,
+      expanded: new Set(['a']),
+      untraced: new Set(['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i']),
+    }).map((line) => line.replace('7', 'N').replace('8', 'M').replace('9', 'F'))
+    expect(lines).toHaveLength(2)
+    const text = section(requirements, '5.5')
+    for (const line of lines) expect(text).toContain(`"${line}"`)
+  })
+
+  it('上电成功不弹提示框', () => {
+    expect(
+      resultNotice({ ...EMPTY_RESULT, id: 'r', operation: 'POWER_ON', result: 'SUCCEEDED' }),
+    ).toBeNull()
   })
 })
 
@@ -150,7 +172,12 @@ describe('需求 5.6 的机械臂提示', () => {
   const t = table(requirements, '5.6')
 
   it('标题、说明和按钮与需求一致', () => {
-    const notices = [ROBOT_NOTICES.softwareEstop, ROBOT_NOTICES.deviceEstop, ROBOT_NOTICES.disabled]
+    const notices = [
+      ROBOT_NOTICES.softwareEstop,
+      ROBOT_NOTICES.deviceEstop,
+      ROBOT_NOTICES.disabled,
+      ROBOT_NOTICES.starting,
+    ]
     expect(t.rows.map(([, title, text, button]) => ({ title, text, button }))).toEqual(
       notices.map((notice) => ({
         title: notice.title,

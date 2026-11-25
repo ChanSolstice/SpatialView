@@ -3,12 +3,7 @@
  * 不可用的按钮仍然显示，位置不变。
  */
 import { Fragment } from 'react'
-import {
-  confirmation,
-  isConfirmAction,
-  type ButtonView,
-  type PanelButton,
-} from '../domain/availability.ts'
+import { isConfirmAction, type ButtonView, type PanelButton } from '../domain/availability.ts'
 import { selectAvailability } from '../store/selectors.ts'
 import { EStopButton } from './EStopButton.tsx'
 import { Icon, type IconName } from './Icon.tsx'
@@ -27,6 +22,7 @@ const ICONS: Record<ButtonView['action'], IconName> = {
   laserOn: 'laser',
   laserOff: 'laser',
   resetEstop: 'estop',
+  powerOn: 'power',
 }
 
 function className(view: ButtonView): string {
@@ -44,7 +40,7 @@ const GROUPS: PanelButton[][] = [
 
 export function ButtonPanel() {
   const { store, commands, config } = useRuntime()
-  const { buttons } = useApp(selectAvailability)
+  const { buttons, power } = useApp(selectAvailability)
 
   const press = (view: ButtonView) => {
     if (!view.enabled) return
@@ -58,11 +54,7 @@ export function ButtonPanel() {
         return void commands.laserOff()
       default:
         if (!view.confirm || !isConfirmAction(view.action)) return void commands.run(view.action)
-        s.pushDialog({
-          kind: 'confirm',
-          action: view.action,
-          confirmation: confirmation(view.action, s.server, s.selection.size),
-        })
+        s.pushDialog({ kind: 'confirm', action: view.action })
     }
   }
 
@@ -91,7 +83,21 @@ export function ButtonPanel() {
         </Fragment>
       ))}
       <div className="panel-divider" />
-      <EStopButton />
+      {/* 底部一行："上电"与急停并排（需求 5.1）。"上电"不在急停区内，在对话框遮罩之下 */}
+      <div className="panel-bottom">
+        <button
+          type="button"
+          className={`${className(power)} power`}
+          disabled={!power.enabled}
+          aria-busy={power.busy}
+          data-testid="btn-power"
+          onClick={() => press(power)}
+        >
+          {power.busy ? <span className="spinner" /> : <Icon name="power" />}
+          <span>{power.label}</span>
+        </button>
+        <EStopButton />
+      </div>
     </aside>
   )
 }

@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { OVERRIDE_KEY } from '../../config/load.ts'
+import { INTERFACE_VERSION } from '../../ros/contract.ts'
 import type { Runtime } from '../../runtime.ts'
 import { testRuntime } from '../../testing/runtime.ts'
 import { RuntimeContext } from '../runtimeContext.ts'
@@ -115,7 +116,7 @@ describe('工程面板（需求 10.3；前端UI设计 4.7）', () => {
     })
     expect(screen.getByText(/覆盖配置保存于配置版本 0，当前默认配置版本为 1/)).toBeTruthy()
     const foot = screen.getByTestId('engineering-panel').querySelector('.eng-foot')?.textContent
-    expect(foot).toContain('期望接口版本 1.0')
+    expect(foot).toContain(`期望接口版本 ${INTERFACE_VERSION}`)
     // jsdom 的 User-Agent 中没有 Chrome 版本
     expect(foot).toContain('WebView 版本 未知')
     expect(foot).toContain('默认配置版本 1')

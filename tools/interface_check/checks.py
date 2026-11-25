@@ -26,6 +26,9 @@ from tools.validate.report import Report
 PREFIX = "spatialview_msgs/srv/"
 SYSTEM_STATE = ("/spatialview/system_state", "spatialview_msgs/msg/SystemState")
 IDLE = ("NO_MODEL", "MODEL_READY", "PLAN_READY")
+# 不受理 ResetEstop、PowerOn 的阶段（接口文档 6.8、6.9）；清洗被中断后停在已暂停，可以复位和上电
+INTERRUPTING = ("SCANNING", "EXECUTING", "STOPPING")
+SCAN_ARGS = {"workpiece_type": "GENERAL"}
 SERVICE_DEADLINE = 0.5  # 指令 Service 必须在 500 毫秒内返回（接口文档 13）
 CHECK_ID = "interface_check"
 
@@ -40,6 +43,7 @@ class Options:
     allow_motion: bool = False
     allow_laser: bool = False
     allow_estop: bool = False
+    allow_power_on: bool = False
     wait: float = 120.0  # 等待扫描、重建、规划、停止完成的最长时间，秒
     listen: float = 3.0  # 观察 SystemState 发布的时长，秒
     connect_timeout: float = 0.0  # 连接失败或服务端尚未就绪时重试的时长，秒
@@ -81,6 +85,8 @@ class Checker:
             self.check_topic()
             self.check_rejections(state)
             self.check_files(self.get_state() or state)
+            if self.options.allow_power_on:
+                self.check_power_on()
             if self.options.allow_laser:
                 self.check_laser()
             if self.options.allow_motion:
@@ -194,7 +200,14 @@ class Checker:
                 "TaskControl",
                 {"command": CHECK_ID.upper(), "plan_id": ""},
                 "INVALID_ARGUMENT",
-            )
+            ),
+            # 工件类型先于其他条件检查，任何阶段都返回 INVALID_ARGUMENT（6.3）
+            (
+                "start_scan",
+                "StartScan",
+                {"workpiece_type": CHECK_ID.upper()},
+                "INVALID_ARGUMENT",
+            ),
         ]
         if phase in ("MODEL_READY", "PLAN_READY"):
             cases.append(
@@ -240,25 +253,31 @@ class Checker:
                     "INVALID_STATE",
                 )
             )
+        resume = ("task_control", "TaskControl", {"command": "RESUME", "plan_id": ""})
         if phase != "PAUSED":
-            cases.append(
-                (
-                    "task_control",
-                    "TaskControl",
-                    {"command": "RESUME", "plan_id": ""},
-                    "INVALID_STATE",
-                )
-            )
+            cases.append((*resume, "INVALID_STATE"))
+        elif robot not in ("READY", "PAUSED"):
+            cases.append((*resume, "ROBOT_NOT_READY"))
         if phase not in ("EXECUTING", "PAUSED"):
             cases.append(
                 ("task_control", "TaskControl", {"command": "STOP", "plan_id": ""}, "INVALID_STATE")
             )
         if phase not in IDLE:
-            cases.append(("start_scan", "StartScan", {}, "INVALID_STATE"))
+            cases.append(("start_scan", "StartScan", SCAN_ARGS, "INVALID_STATE"))
             cases.append(("set_laser", "SetLaser", {"on": True}, "INVALID_STATE"))
         elif robot != "READY":
-            cases.append(("start_scan", "StartScan", {}, "ROBOT_NOT_READY"))
+            cases.append(("start_scan", "StartScan", SCAN_ARGS, "ROBOT_NOT_READY"))
             cases.append(("set_laser", "SetLaser", {"on": True}, "ROBOT_NOT_READY"))
+        # 上电（6.9）：机械臂为未启动、阶段允许时会被受理，这里不调用
+        if phase in INTERRUPTING or robot in (
+            "READY",
+            "RUNNING",
+            "PAUSED",
+            "STARTING",
+        ):
+            cases.append(("power_on", "PowerOn", {}, "INVALID_STATE"))
+        elif robot != "DISABLED":
+            cases.append(("power_on", "PowerOn", {}, "ROBOT_NOT_READY"))
         if not state["software_estop"]:
             cases.append(("reset_estop", "ResetEstop", {}, "INVALID_STATE"))
         laser_off = "DEVICE_ERROR" if state["laser_state"] == "OFFLINE" else "OK"
@@ -293,7 +312,8 @@ class Checker:
             )
         return body
 
-    def check_files(self, state: dict) -> None:
+    def check_files(self, state: dict, requested: list[str] | None = None) -> None:
+        """requested 为这次规划 StartPlan 发送的 surface_ids，给出时检查规划文件的有效选择。"""
         if state["model_id"] and state["model_id"] == getattr(self, "_checked_model", (None,))[0]:
             model_info = self._checked_model[1]  # 同一个模型只校验一次
         elif state["model_id"]:
@@ -319,6 +339,7 @@ class Checker:
                     tcp_link=self.options.tcp_link,
                     expected_plan_id=state["plan_id"],
                     expected_model_id=state["model_id"],
+                    expected_selected=requested,
                 )
                 self._merge(report, f"规划 {state['plan_id']}")
                 if plan.get("surface_ids") != state["plan_surface_ids"]:
@@ -333,6 +354,51 @@ class Checker:
             self.report.add(level, code, f"{label}：{code} 另有 {more} 处")
 
     # ------------------------------------------------------------------ 需要显式开启的用例
+
+    def check_power_on(self) -> None:
+        state = self.get_state()
+        if state is None:
+            return
+        if state["robot_state"] != "DISABLED" or state["phase"] in INTERRUPTING:
+            self.report.error(
+                "POWER_ON", "上电用例需要机械臂为未启动，阶段不是扫描中、执行中、停止中"
+            )
+            return
+        phase = state["phase"]
+        reply = self.command("power_on", "PowerOn", {}, ("OK",))
+        if reply is None or reply["code"] != "OK":
+            return
+        if reply["state"]["robot_state"] != "STARTING":
+            self.report.error(
+                "POWER_ON",
+                f"PowerOn 受理后回复中的 robot_state 应为 STARTING，"
+                f"实际为 {reply['state']['robot_state']}",
+            )
+        self.command("power_on", "PowerOn", {}, ("INVALID_STATE",))  # 正在启动：重复指令
+        state = self.wait_for(
+            lambda s: (
+                s["last_result"]["operation"] == "POWER_ON"
+                and s["last_result"]["id"] != reply["state"]["last_result"]["id"]
+            ),
+            self.options.wait,
+            "给出上电的结果",
+        )
+        if state is None:
+            return
+        self._expect_result(state, "POWER_ON", "SUCCEEDED")
+        if state["last_result"]["result"] != "SUCCEEDED":
+            return
+        if state["robot_state"] != "READY" and state["phase"] in IDLE:
+            self.report.error(
+                "POWER_ON", f"上电成功后机械臂应为 READY，实际为 {state['robot_state']}"
+            )
+        if state["phase"] != phase:
+            self.report.error("POWER_ON", f"上电改变了作业阶段：{phase} → {state['phase']}")
+        if state["laser_state"] == "ON":
+            self.report.error("POWER_ON", "上电不应开启激光")
+        self.report.info(
+            "POWER_ON", "上电正常：受理后为启动中，结束后为就绪，结果 POWER_ON SUCCEEDED"
+        )
 
     def check_laser(self) -> None:
         state = self.get_state()
@@ -368,7 +434,7 @@ class Checker:
         ):
             self.report.error("MOTION", "扫描用例需要阶段空闲、机械臂就绪、相机正常")
             return
-        if self.command("start_scan", "StartScan", {}, ("OK",)) is None:
+        if self.command("start_scan", "StartScan", SCAN_ARGS, ("OK",)) is None:
             return
         state = self.wait_for(
             lambda s: s["phase"] == "MODEL_READY", self.options.wait, "完成扫描和重建"
@@ -391,7 +457,7 @@ class Checker:
         if state is None:
             return
         self._expect_result(state, "PLAN", "SUCCEEDED")
-        self.check_files(state)
+        self.check_files(state, requested=[])
         start = {"command": "START", "plan_id": state["plan_id"]}
         if self.command("task_control", "TaskControl", start, ("OK",)) is None:
             return
@@ -440,16 +506,18 @@ class Checker:
             return False
         return True
 
-    def _estop_during_task(self) -> None:
-        if not self._call_estop():
-            return
+    def _estop_interrupts_task(self, case: str) -> dict | None:
+        """清洗中急停：2 秒内中断，停在已暂停，保留执行进度和规划（8.4、8.5）。"""
+        before = self.get_state()
+        if before is None or not self._call_estop():
+            return None
         state = self.wait_for(
-            lambda s: s["robot_state"] == "ESTOP" and s["phase"] == "PLAN_READY",
+            lambda s: s["robot_state"] == "ESTOP" and s["phase"] == "PAUSED",
             2.5,
-            "在 2 秒内中断任务并显示急停",
+            f"在 2 秒内中断任务、停在已暂停并显示急停（{case}）",
         )
         if state is None:
-            return
+            return None
         if not state["software_estop"]:
             self.report.error("ESTOP", "急停后 software_estop 应为 true")
         self._expect_result(state, "TASK", "INTERRUPTED")
@@ -457,7 +525,54 @@ class Checker:
             self.report.error(
                 "ESTOP", f"中断原因应为 ROBOT_ESTOP，实际为 {state['last_result']['code']}"
             )
+        if (state["plan_id"], state["model_id"]) != (before["plan_id"], before["model_id"]):
+            self.report.error("INTERRUPT_KEEPS_PLAN", "清洗中断后模型或规划发生了变化")
+        if state["exec_time"] <= 0:
+            self.report.error("INTERRUPT_KEEPS_PROGRESS", "清洗中断后 exec_time 应停在中断处")
+        return state
+
+    def _estop_during_task(self) -> None:
+        """清洗中急停、复位后从中断处继续（6.5"中断后继续"），再急停后停止。"""
+        paused = self._estop_interrupts_task("第 1 次")
+        if paused is None:
+            return
+        breakpoint_time = paused["exec_time"]
+        resume = {"command": "RESUME", "plan_id": ""}
+        self.command("task_control", "TaskControl", resume, ("ROBOT_NOT_READY",))
         self._reset("清洗中急停")
+        state = self.get_state()
+        if state is None:
+            return
+        if state["phase"] != "PAUSED":
+            self.report.error("RESET_ESTOP", f"复位后阶段应仍为 PAUSED，实际为 {state['phase']}")
+            return
+        if self.command("task_control", "TaskControl", resume, ("OK",)) is None:
+            return
+        # 机械臂先移回中断处，期间 exec_time 不增长；之后从中断处（或稍前的回退处）接着增长
+        state = self.wait_for(
+            lambda s: s["phase"] == "EXECUTING" and s["exec_time"] > breakpoint_time,
+            self.options.wait,
+            "看到继续后的执行时间超过中断处",
+        )
+        if state is None:
+            return
+        self.report.info(
+            "RESUME",
+            f"中断处 exec_time 为 {breakpoint_time:.1f} 秒，继续后为 {state['exec_time']:.1f} 秒",
+        )
+        if self._estop_interrupts_task("第 2 次") is None:
+            return
+        # 机械臂仍为急停时停止立即完成（6.5）
+        stop = {"command": "STOP", "plan_id": ""}
+        if self.command("task_control", "TaskControl", stop, ("OK",)) is None:
+            return
+        state = self.wait_for(
+            lambda s: s["phase"] == "PLAN_READY", 2.0, "在急停时停止后立即回到规划就绪"
+        )
+        if state is None:
+            return
+        self._expect_result(state, "TASK", "STOPPED")
+        self._reset("中断后停止")
 
     def check_estop(self) -> None:
         state = self.get_state()

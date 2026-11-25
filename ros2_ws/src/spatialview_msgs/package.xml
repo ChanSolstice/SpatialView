@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>spatialview_msgs</name>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <description>SpatialView 接口定义包：按服务端对接接口文档第 5–7 节编写的消息、服务和状态码常量。服务端直接使用，不自行修改。</description>
   <maintainer email="channing53533@gmail.com">SpatialView APP 团队</maintainer>
   <license>Proprietary</license>

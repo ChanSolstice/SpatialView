@@ -34,6 +34,7 @@ export const ROBOT_VIEW: Record<RobotState, StatusView> = {
   FAULT: { text: '故障', tone: 'fault' },
   ESTOP: { text: '急停', tone: 'crit' },
   DISABLED: { text: '未启动', tone: 'off' },
+  STARTING: { text: '启动中', tone: 'pause' },
   OFFLINE: { text: '离线', tone: 'gray' },
 }
 
@@ -156,7 +157,7 @@ export function sceneContent(phase: string | null, mode: SceneMode): SceneConten
   return { ...(row ?? { workpiece: 'normal', path: 'none', center: null }), robot: false }
 }
 
-export type RobotNoticeKind = 'softwareEstop' | 'deviceEstop' | 'disabled'
+export type RobotNoticeKind = 'softwareEstop' | 'deviceEstop' | 'disabled' | 'starting'
 
 export interface RobotNotice {
   kind: RobotNoticeKind
@@ -176,21 +177,33 @@ export const ROBOT_NOTICES: Record<RobotNoticeKind, RobotNotice> = {
   deviceEstop: {
     kind: 'deviceEstop',
     title: '设备急停已触发',
-    text: '解除设备急停后，在示教器上恢复机械臂。',
+    text: '请在设备上解除急停。解除后机械臂未启动的，点击"上电"。',
     reset: false,
   },
   disabled: {
     kind: 'disabled',
     title: '机械臂未启动',
-    text: '请在示教器上启动机械臂（上电并松开刹车）。',
+    text: '确认机械臂周围无人后，点击按钮栏底部的"上电"。',
+    reset: false,
+  },
+  starting: {
+    kind: 'starting',
+    title: '机械臂启动中',
+    text: '正在上电并松开刹车，请稍候。',
     reset: false,
   },
 }
 
-/** 机械臂急停或未启动时的提示（需求 5.6）。两种急停同时存在时显示软件急停。 */
+/** 机械臂急停、未启动或启动中时的提示（需求 5.6）。两种急停同时存在时显示软件急停。 */
 export function robotNotice(state: SystemState | null): RobotNotice | null {
-  if (state?.robot_state === 'ESTOP') {
-    return state.software_estop ? ROBOT_NOTICES.softwareEstop : ROBOT_NOTICES.deviceEstop
+  switch (state?.robot_state) {
+    case 'ESTOP':
+      return state.software_estop ? ROBOT_NOTICES.softwareEstop : ROBOT_NOTICES.deviceEstop
+    case 'DISABLED':
+      return ROBOT_NOTICES.disabled
+    case 'STARTING':
+      return ROBOT_NOTICES.starting
+    default:
+      return null
   }
-  return state?.robot_state === 'DISABLED' ? ROBOT_NOTICES.disabled : null
 }

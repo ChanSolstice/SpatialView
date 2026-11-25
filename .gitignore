@@ -25,6 +25,9 @@ samples/
 # 演示视频的录制输出（tools/demo）
 demo-output/
 
+# 交给服务端团队的安装包和说明（记录在阶段规划 4.4）
+delivery/
+
 # 编辑器与系统
 .vscode/
 .idea/

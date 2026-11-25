@@ -98,6 +98,11 @@ def record(rec: Recorder) -> None:
     rec.mark("开始扫描：扫描、重建后显示工件模型")
     rec.set_speed(2.5)
     press(rec, "scan")
+    # 先选择工件类型（需求 5.4）：演示用的圆台是旋转体
+    rec.until("选择工件类型", lambda s: bool(s["dialog"]), timeout=5)
+    rec.hold(0.6)
+    rec.tap(rec.center(f"{DIALOG} .dlg-choice"), after=0.4)
+    confirm(rec, "开始扫描")
     rec.until(
         "扫描和重建",
         lambda s: s["phase"] == "模型就绪" and s["enabled"]["select"] and not s["loading"],

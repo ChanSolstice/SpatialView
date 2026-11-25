@@ -13,7 +13,7 @@ import { commandCodeText } from '../domain/codes.ts'
 import type { CommandKey } from '../domain/types.ts'
 import { selectAvailability } from '../store/selectors.ts'
 import type { AppState, AppStore } from '../store/store.ts'
-import { ESTOP_SERVICE, SERVICES, triggerResponseSchema } from './contract.ts'
+import { ESTOP_SERVICE, SERVICES, triggerResponseSchema, type WorkpieceType } from './contract.ts'
 import type { StateSync } from './stateSync.ts'
 import { CallError, type RosSocket } from './transport.ts'
 
@@ -36,9 +36,14 @@ export interface CommandConnection {
   readonly epoch: number
 }
 
+export interface CommandOptions {
+  /** 开始扫描时选择的工件类型（需求 5.4），开始扫描必须提供。 */
+  workpieceType?: WorkpieceType
+}
+
 export interface Commands {
   /** 发送普通指令。不可用时不发送（防御检查，最终是否合法由服务端判断）。 */
-  run(key: CommandKey): Promise<void>
+  run(key: CommandKey, options?: CommandOptions): Promise<void>
   laserOff(): Promise<void>
   estop(): Promise<void>
 }
@@ -48,8 +53,11 @@ interface Request {
   args: object
 }
 
-/** 指令的请求。模型和规划 ID 取 APP 当前加载的；本地尚未加载时取服务端当前的（接口文档 6.4、6.5）。 */
-function request(key: CommandKey, s: AppState): Request {
+/**
+ * 指令的请求。模型和规划 ID 取 APP 当前加载的；本地尚未加载时取服务端当前的（接口文档 6.4、6.5）。
+ * 开始扫描没有工件类型时返回 null，不发送。
+ */
+function request(key: CommandKey, s: AppState, options: CommandOptions): Request | null {
   const modelId = s.model.id ?? s.server?.model_id ?? ''
   const planId = s.plan.id ?? s.server?.plan_id ?? ''
   const task = (command: string, plan_id = '') => ({
@@ -58,7 +66,9 @@ function request(key: CommandKey, s: AppState): Request {
   })
   switch (key) {
     case 'scan':
-      return { service: SERVICES.startScan, args: {} }
+      return options.workpieceType
+        ? { service: SERVICES.startScan, args: { workpiece_type: options.workpieceType } }
+        : null
     case 'plan':
       return {
         service: SERVICES.startPlan,
@@ -76,6 +86,8 @@ function request(key: CommandKey, s: AppState): Request {
       return { service: SERVICES.setLaser, args: { on: true } }
     case 'resetEstop':
       return { service: SERVICES.resetEstop, args: {} }
+    case 'powerOn':
+      return { service: SERVICES.powerOn, args: {} }
   }
 }
 
@@ -109,13 +121,14 @@ export function createCommands(
     })
 
   return {
-    async run(key) {
+    async run(key, options = {}) {
       const s = store.getState()
       if (!isActionAvailable(key, selectAvailability(s))) return
+      const req = request(key, s, options)
       const socket = connection.current
-      if (socket === null || !s.beginCommand(key)) return
+      if (req === null || socket === null || !s.beginCommand(key)) return
       const epoch = connection.epoch
-      const { service, args } = request(key, s)
+      const { service, args } = req
       try {
         const raw = await socket.call(service.name, service.type, args, timing.service_timeout_ms)
         if (connection.epoch !== epoch) return

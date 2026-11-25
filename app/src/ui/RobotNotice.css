@@ -1,6 +1,6 @@
 /*
  * 机械臂提示（前端UI设计 4.8）：三维区顶部居中，宽 560，高 72；白底，左侧 6 像素色条，与短时提示同一风格。
- * 急停为危险色，未启动为 off 的圆点色。
+ * 急停为危险色，未启动为 off 的圆点色，启动中为 pause 的圆点色。
  */
 .robot-notice {
   display: flex;
@@ -19,6 +19,19 @@
 .robot-notice.is-off {
   border-color: var(--divider);
   border-left-color: var(--off-dot);
+}
+
+.robot-notice.is-starting {
+  border-color: var(--divider);
+  border-left-color: var(--pause-dot);
+}
+
+.robot-notice > .spinner {
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-color: var(--pause-bg);
+  border-top-color: var(--pause-dot);
 }
 
 .robot-notice > .ic {

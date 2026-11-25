@@ -34,6 +34,7 @@ def members(cls) -> list[str]:
         ("msg/OperationResult.msg", "OPERATION_", c.Operation),
         ("msg/OperationResult.msg", "RESULT_", c.Outcome),
         ("srv/TaskControl.srv", "COMMAND_", c.Command),
+        ("srv/StartScan.srv", "WORKPIECE_TYPE_", c.WorkpieceType),
     ],
 )
 def test_enums(file, prefix, cls):

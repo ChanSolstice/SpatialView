@@ -29,6 +29,8 @@ export interface LoadedModel {
   surfaces: ReadonlyMap<string, Surface>
   /** 各表面的边界，只在选面模式显示（需求 6.4）。 */
   boundaries: LineSegments2
+  /** 指定表面的边界边，每条边 6 个数，用于勾出没有生成路径的表面（需求 6.4）；模型中没有的表面忽略。 */
+  outline(ids: Iterable<string>): Float32Array
   box: Box3
   sphere: Sphere
   triangles: number
@@ -142,9 +144,14 @@ export async function parseModel(data: ArrayBuffer, expectedId: string): Promise
   }
 
   const merged = new Float32Array(segments.reduce((sum, s) => sum + s.length, 0))
+  // 各表面的边界边在 merged 中的起止位置，按表面顺序与 segments 对应
+  const ranges = new Map<string, [number, number]>()
   let offset = 0
-  for (const s of segments) {
+  let i = 0
+  for (const id of surfaces.keys()) {
+    const s = segments[i++] as Float32Array
     merged.set(s, offset)
+    ranges.set(id, [offset, offset + s.length])
     offset += s.length
   }
   const lineGeometry = new LineSegmentsGeometry()
@@ -160,6 +167,19 @@ export async function parseModel(data: ArrayBuffer, expectedId: string): Promise
     group,
     surfaces,
     boundaries,
+    outline: (ids) => {
+      const parts = [...new Set(ids)].flatMap((id) => {
+        const range = ranges.get(id)
+        return range ? [merged.subarray(range[0], range[1])] : []
+      })
+      const out = new Float32Array(parts.reduce((sum, part) => sum + part.length, 0))
+      let o = 0
+      for (const part of parts) {
+        out.set(part, o)
+        o += part.length
+      }
+      return out
+    },
     box,
     sphere,
     triangles,

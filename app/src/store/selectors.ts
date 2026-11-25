@@ -6,6 +6,7 @@ import type { LoadedPlan } from '../assets/path.ts'
 import type { LoadedRobot } from '../assets/robot.ts'
 import { alarmItems, type AlarmItem } from '../domain/alarms.ts'
 import { availability, type Availability } from '../domain/availability.ts'
+import { planRange, type PlanRange } from '../domain/planRange.ts'
 import { alarmSummary, type AlarmSummary } from '../domain/phase.ts'
 import { isCompatibleVersion, unknownValues, type SystemState } from '../ros/contract.ts'
 import type { AppState } from './store.ts'
@@ -69,6 +70,15 @@ export const selectAnimationData = memo(
     match && match.missing.length === 0
       ? { plan: match.plan, robot: match.robot, joints: match.joints }
       : null,
+)
+
+/**
+ * 当前规划的规划范围（需求 6.4）：规划已加载、是服务端当前的规划，并且规划文件带有表面集合时才有。
+ */
+export const selectPlanRange = memo(
+  (s) => [s.plan.data, s.server?.plan_id] as const,
+  (plan, planId): PlanRange | null =>
+    plan && plan.id === planId ? planRange(plan.data.scope, plan.data.surfaceIds) : null,
 )
 
 /**

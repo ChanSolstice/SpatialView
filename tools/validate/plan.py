@@ -35,9 +35,11 @@ def validate_plan(
     tcp_link: str | None = None,
     expected_plan_id: str | None = None,
     expected_model_id: str | None = None,
+    expected_selected: list[str] | None = None,
     tcp_tolerance: float = 0.05,
     fk_tolerance: float = 0.005,
 ) -> Report:
+    """expected_selected 为 StartPlan 发送的 surface_ids：给出时检查有效选择与之一致（接口文档 6.4）。"""
     report = Report("规划文件" if isinstance(source, dict) else str(source))
     if isinstance(source, dict):
         plan = source
@@ -55,6 +57,7 @@ def validate_plan(
     if plan.get("frame_id") != "base_link":
         report.error("PLAN_FRAME", f'frame_id 为 {plan.get("frame_id")!r}，应为 "base_link"')
     _check_surfaces(report, plan, model)
+    _check_scope(report, plan, model, expected_selected)
     duration = plan.get("duration")
     if not _is_number(duration) or not duration > 0:
         report.error("PLAN_DURATION", f"duration 为 {duration!r}，应为大于 0 的秒数")
@@ -62,9 +65,12 @@ def validate_plan(
 
     joints = _check_joint_trajectory(report, plan.get("joint_trajectory"), duration, robot)
     tcp = _check_tcp_path(report, plan.get("tcp_path"), duration)
+    failed = _check_failed_paths(report, plan, model)
 
     if model is not None and tcp is not None:
         _check_tcp_near_model(report, model, tcp, tcp_tolerance)
+    if model is not None and failed is not None:
+        _check_failed_near_model(report, model, failed, tcp_tolerance)
     if robot is not None and tcp_link and joints is not None and tcp is not None:
         _check_forward_kinematics(report, robot, tcp_link, joints, tcp, fk_tolerance)
 
@@ -112,6 +118,102 @@ def _check_surfaces(report: Report, plan: dict, model: ModelInfo | None) -> None
             report.error("PLAN_SURFACE_UNKNOWN", f"表面 {surface_id} 不在模型中")
         elif not model.surfaces[surface_id]:
             report.error("PLAN_SURFACE_NOT_SELECTABLE", f"表面 {surface_id} 在模型中标记为不可清洗")
+
+
+def _id_list(report: Report, plan: dict, key: str) -> list[str] | None:
+    value = plan[key]
+    if not (isinstance(value, list) and value and all(isinstance(s, str) and s for s in value)):
+        report.error("SCOPE_FORMAT", f"{key} 应为非空的字符串数组")
+        return None
+    if len(set(value)) != len(value):
+        report.error("SCOPE_DUPLICATE", f"{key} 有重复")
+    return value
+
+
+def _check_scope(
+    report: Report, plan: dict, model: ModelInfo | None, expected_selected: list[str] | None
+) -> None:
+    """表面集合（11.1 的 selected_surface_ids、planning_scope_surface_ids，11.2）：同时给出；有效选择、
+    surface_ids 和失败路径的表面都在规划范围内；都是模型中可清洗的表面。"""
+    has_selected = "selected_surface_ids" in plan
+    has_scope = "planning_scope_surface_ids" in plan
+    if not has_selected and not has_scope:
+        report.warning(
+            "SCOPE_MISSING",
+            "没有 selected_surface_ids 和 planning_scope_surface_ids：按第 13 版实现的服务端必须给出；"
+            "APP 按旧服务端的规划文件处理，不显示扩展",
+        )
+        return
+    if not (has_selected and has_scope):
+        present = "selected_surface_ids" if has_selected else "planning_scope_surface_ids"
+        report.error(
+            "SCOPE_FIELDS",
+            f"只有 {present}：两个字段应同时给出，只有一个时 APP 视为规划加载失败",
+        )
+        return
+    selected = _id_list(report, plan, "selected_surface_ids")
+    scope = _id_list(report, plan, "planning_scope_surface_ids")
+    if selected is None or scope is None:
+        return
+    in_scope = set(scope)
+
+    def outside(code: str, what: str, ids) -> None:
+        missing = [s for s in dict.fromkeys(ids) if s not in in_scope]
+        if missing:
+            report.error(
+                code, f"{what} {'、'.join(missing)} 不在规划范围 planning_scope_surface_ids 中"
+            )
+
+    outside("SELECTED_NOT_IN_SCOPE", "有效选择中的表面", selected)
+    surface_ids = plan.get("surface_ids")
+    if isinstance(surface_ids, list):
+        outside(
+            "SURFACE_NOT_IN_SCOPE",
+            "surface_ids 中的表面",
+            [s for s in surface_ids if isinstance(s, str)],
+        )
+    failed = plan.get("failed_paths")
+    if isinstance(failed, list):
+        outside(
+            "FAILED_PATH_NOT_IN_SCOPE",
+            "失败路径的表面",
+            [
+                p["surface_id"]
+                for p in failed
+                if isinstance(p, dict) and isinstance(p.get("surface_id"), str)
+            ],
+        )
+    if model is not None:
+        for surface_id in dict.fromkeys(selected + scope):
+            if surface_id not in model.surfaces:
+                report.error("SCOPE_SURFACE_UNKNOWN", f"表面集合中的表面 {surface_id} 不在模型中")
+            elif not model.surfaces[surface_id]:
+                report.error(
+                    "SCOPE_SURFACE_NOT_SELECTABLE",
+                    f"表面集合中的表面 {surface_id} 在模型中标记为不可清洗",
+                )
+    if expected_selected is not None:
+        if expected_selected:
+            expected = list(dict.fromkeys(expected_selected))
+        elif model is not None:
+            expected = [s for s, selectable in model.surfaces.items() if selectable]
+        else:
+            expected = None
+        if expected is not None and set(selected) != set(expected):
+            report.error(
+                "SELECTED_MISMATCH",
+                f"有效选择为 {'、'.join(selected)}，按 StartPlan 的请求应为 {'、'.join(expected)}"
+                "（去掉重复；为空时为全部可清洗表面）",
+            )
+    traced = set(surface_ids) if isinstance(surface_ids, list) else set()
+    chosen = set(selected)
+    expanded = [s for s in scope if s not in chosen]
+    untraced = [s for s in scope if s not in traced]
+    report.info(
+        "SCOPE_SUMMARY",
+        f"有效选择 {len(chosen)} 个表面，规划范围 {len(in_scope)} 个（扩展 {len(expanded)} 个），"
+        f"没有生成路径 {len(untraced)} 个" + (f"（{'、'.join(untraced)}）" if untraced else ""),
+    )
 
 
 def _check_times(report: Report, label: str, t: np.ndarray, duration: float | None) -> bool:
@@ -271,6 +373,75 @@ def _check_tcp_path(report, path, duration):
     return (t, p, process) if times_ok else None
 
 
+def _check_failed_paths(report: Report, plan: dict, model: ModelInfo | None):
+    """失败路径（11.1 的 failed_paths，可选）：每段至少 2 个点，合计不超过 10 万点（11.2）。
+    返回全部点 (N, 3)；没有失败路径或格式不对时返回 None。"""
+    if "failed_paths" not in plan:
+        return None
+    paths = plan["failed_paths"]
+    if paths is None:
+        report.warning("FAILED_PATHS", "failed_paths 为 null：没有失败路径时省略该字段或给空数组")
+        return None
+    if not isinstance(paths, list):
+        report.error("FAILED_PATHS", "failed_paths 应为数组")
+        return None
+    if not paths:
+        return None
+    points: list[list[float]] = []
+    surfaces: list[str] = []
+    complete = True
+    for i, path in enumerate(paths):
+        where = f"failed_paths[{i}]"
+        if not isinstance(path, dict):
+            report.error("FAILED_PATH_FORMAT", f"{where} 不是对象")
+            complete = False
+            continue
+        surface_id = path.get("surface_id")
+        if not (isinstance(surface_id, str) and surface_id):
+            report.error("FAILED_PATH_FORMAT", f"{where}.surface_id 应为非空字符串")
+            complete = False
+        else:
+            surfaces.append(surface_id)
+        path_points = path.get("points")
+        if not isinstance(path_points, list):
+            report.error("FAILED_PATH_FORMAT", f"{where}.points 应为数组")
+            complete = False
+            continue
+        if len(path_points) < 2:
+            report.error(
+                "FAILED_PATH_POINTS", f"{where} 只有 {len(path_points)} 个点，每段至少 2 个点"
+            )
+        for j, point in enumerate(path_points):
+            p = point.get("p") if isinstance(point, dict) else None
+            if not _is_numbers(p, 3) or not all(math.isfinite(v) for v in p):
+                report.error("FAILED_PATH_FORMAT", f"{where}.points[{j}].p 应为 3 个有限数值")
+                complete = False
+                break
+            points.append(p)
+    if len(points) > MAX_POINTS:
+        report.error("POINTS_LIMIT", f"failed_paths 合计 {len(points)} 点，超过 {MAX_POINTS}")
+    if model is not None:
+        for surface_id in dict.fromkeys(surfaces):
+            if surface_id not in model.surfaces:
+                report.error(
+                    "FAILED_PATH_SURFACE_UNKNOWN", f"失败路径的表面 {surface_id} 不在模型中"
+                )
+            elif not model.surfaces[surface_id]:
+                report.error(
+                    "FAILED_PATH_SURFACE_NOT_SELECTABLE",
+                    f"失败路径的表面 {surface_id} 在模型中标记为不可清洗",
+                )
+    if not complete:
+        return None
+    names = "、".join(dict.fromkeys(surfaces))
+    report.info(
+        "FAILED_PATHS_SUMMARY",
+        f"失败路径 {len(paths)} 段，{len(points)} 点（表面 {names}）；规划结果应为 PLAN SUCCEEDED、"
+        "原因码 PLAN_PARTIAL",
+    )
+    return np.array(points, float)
+
+
 def _sample(count: int) -> np.ndarray:
     return np.unique(np.linspace(0, count - 1, min(count, SAMPLE_LIMIT)).astype(int))
 
@@ -318,6 +489,23 @@ def _check_tcp_near_model(report, model: ModelInfo, tcp, tolerance: float) -> No
         )
     else:
         report.info("TCP_NEAR_MODEL", f"{ratio:.0%} 的工艺段 TCP 点在模型表面 {tolerance} 米以内")
+
+
+def _check_failed_near_model(
+    report, model: ModelInfo, points: np.ndarray, tolerance: float
+) -> None:
+    if len(points) == 0 or len(model.points) == 0:
+        return
+    sample = points[_sample(len(points))]
+    ratio = float(points_within(model.points, sample, tolerance).mean())
+    if ratio < NEAR_MODEL_RATIO:
+        report.error(
+            "FAILED_FAR_FROM_MODEL",
+            f"只有 {ratio:.0%} 的失败路径点在模型表面 {tolerance} 米以内（要求至少"
+            f" {NEAR_MODEL_RATIO:.0%}）：失败路径与 tcp_path 使用同一坐标系 base_link",
+        )
+    else:
+        report.info("FAILED_NEAR_MODEL", f"{ratio:.0%} 的失败路径点在模型表面 {tolerance} 米以内")
 
 
 def _check_forward_kinematics(report, robot: Robot, tcp_link: str, joints, tcp, tolerance) -> None:

@@ -8,7 +8,7 @@ import type { LoadedModel } from '../assets/model.ts'
 import type { LoadedPlan } from '../assets/path.ts'
 import type { LoadedRobot } from '../assets/robot.ts'
 import type { LocalAlarm } from '../domain/alarms.ts'
-import type { Confirmation, ConfirmAction } from '../domain/availability.ts'
+import type { ConfirmAction } from '../domain/availability.ts'
 import type { ResultNotice } from '../domain/results.ts'
 import type { AssetStatus, CommandKey, ConnStatus, SceneMode } from '../domain/types.ts'
 import type { SystemState } from '../ros/contract.ts'
@@ -32,7 +32,8 @@ export interface ConnState {
 }
 
 export type Dialog =
-  | { id: number; kind: 'confirm'; action: ConfirmAction; confirmation: Confirmation }
+  /** 文案在显示时按当前状态得出（需求 5.4 开始清洗的警告随状态更新）；step 2 为上电的第二次确认。 */
+  | { id: number; kind: 'confirm'; action: ConfirmAction; step?: 1 | 2 }
   | { id: number; kind: 'result'; notice: ResultNotice }
   | { id: number; kind: 'info'; title: string; text: string }
   /** 急停发送失败、激光关闭失败（前端UI设计 4.4）。 */
@@ -76,6 +77,8 @@ export interface AppState {
   /** 尚未回复的关闭激光调用数。 */
   laserOffPending: number
   lastResultId: string | null
+  /** 规划加载后要说明规划范围的 plan_id（需求 5.5）：收到 PLAN SUCCEEDED 时记下，加载成功或失败后清除。 */
+  planNotice: string | null
 
   model: AssetSlot<LoadedModel>
   plan: AssetSlot<LoadedPlan>
@@ -103,6 +106,7 @@ export interface AppActions {
   setServer(state: SystemState, cursor: { sessionId: string; seq: number }): void
   setContractError(error: string | null): void
   setLastResultId(id: string): void
+  setPlanNotice(planId: string | null): void
   /** 加在途锁；已有指令在途时返回 false。 */
   beginCommand(key: CommandKey): boolean
   endCommand(key: CommandKey): void
@@ -115,7 +119,10 @@ export interface AppActions {
   setRobot(patch: Partial<AssetSlot<LoadedRobot>>): void
   setMode(mode: SceneMode): void
   setSelection(selection: ReadonlySet<string>, basis?: string | null): void
-  /** 进入选面：初始选择为当前规划使用的表面，没有规划时为空；相机恢复默认视角（需求 6.4）。 */
+  /**
+   * 进入选面：初始选择为当前规划的有效选择，规划文件没有有效选择时为 plan_surface_ids，没有规划时为空；
+   * 相机恢复默认视角（需求 6.4）。
+   */
   enterSelect(): void
   /** 选面模式中点选表面：未选中则加入，已选中则移除；不可选的表面不响应。 */
   toggleSurface(id: string): void
@@ -140,6 +147,7 @@ export const INITIAL_STATE: AppState = {
   inflight: null,
   laserOffPending: 0,
   lastResultId: null,
+  planNotice: null,
   model: { id: null, status: 'idle', data: null, error: null },
   plan: { id: null, status: 'idle', data: null, error: null },
   robot: { id: null, status: 'idle', data: null, error: null },
@@ -164,6 +172,7 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
     setServer: (state, cursor) => set((s) => ({ server: state, conn: { ...s.conn, ...cursor } })),
     setContractError: (contractError) => set({ contractError }),
     setLastResultId: (lastResultId) => set({ lastResultId }),
+    setPlanNotice: (planNotice) => set({ planNotice }),
 
     beginCommand: (key) => {
       if (get().inflight !== null) return false
@@ -188,7 +197,10 @@ export function createAppStore(initial: Partial<AppState> = {}): AppStore {
         let selection = s.selection
         if (basis !== s.selectionBasis) {
           const surfaces = s.model.data?.surfaces
-          const planned = server?.plan_id ? server.plan_surface_ids : []
+          // 扩展进来的表面不预先选中，避免下次规划把扩展结果当作选择再扩展一次
+          const plan = s.plan.data
+          const scope = plan && plan.id === server?.plan_id ? plan.data.scope : null
+          const planned = server?.plan_id ? (scope?.selected ?? server.plan_surface_ids) : []
           selection = new Set(planned.filter((id) => !surfaces || surfaces.get(id)?.selectable))
         }
         return { mode: 'select', selection, selectionBasis: basis, viewResets: s.viewResets + 1 }

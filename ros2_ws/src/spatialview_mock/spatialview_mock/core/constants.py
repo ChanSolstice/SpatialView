@@ -1,6 +1,6 @@
 """接口约定中的取值，与 spatialview_msgs 一致（test/test_constants.py 对照 .msg 文件）。"""
 
-INTERFACE_VERSION = "1.0"
+INTERFACE_VERSION = "1.1"
 
 
 class Robot:
@@ -10,6 +10,7 @@ class Robot:
     FAULT = "FAULT"
     ESTOP = "ESTOP"
     DISABLED = "DISABLED"
+    STARTING = "STARTING"
     OFFLINE = "OFFLINE"
 
 
@@ -48,6 +49,7 @@ class Operation:
     RECONSTRUCT = "RECONSTRUCT"
     PLAN = "PLAN"
     TASK = "TASK"
+    POWER_ON = "POWER_ON"
 
 
 class Outcome:
@@ -62,6 +64,11 @@ class Command:
     PAUSE = "PAUSE"
     RESUME = "RESUME"
     STOP = "STOP"
+
+
+class WorkpieceType:
+    REVOLVED = "REVOLVED"
+    GENERAL = "GENERAL"
 
 
 class Code:

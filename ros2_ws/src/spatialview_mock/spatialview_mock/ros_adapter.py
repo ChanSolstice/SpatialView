@@ -1,7 +1,7 @@
 """mock 服务端的 ROS 2 节点：/spatialview 下的 Topic 和 Service、故障注入，以及与模拟驱动的内部接口。
 
 线程（接口文档 5.4、6.1）：指令 Service 在一个互斥回调组中串行处理；定时推进和订阅在另一个回调组；
-调用模拟驱动的客户端在可重入回调组中，复位急停时可以在指令回调里同步等待驱动的确认。
+调用模拟驱动的客户端在可重入回调组中，复位急停、上电时可以在指令回调里同步等待驱动的确认。
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ from spatialview_mock_msgs.srv import Inject
 from spatialview_msgs.msg import Alarm, OperationResult, SystemState
 from spatialview_msgs.srv import (
     GetSystemState,
+    PowerOn,
     ResetEstop,
     SetLaser,
     StartPlan,
@@ -99,6 +100,7 @@ class MockServer(Node):
             plan_seconds=self._number("plan_seconds", 5.0),
             stop_seconds=self._number("stop_seconds", 1.0),
             speed=self._number("speed", 1.0),
+            power_on_timeout=self._number("power_on_timeout", 30.0),
         )
 
         self.lock = threading.Lock()
@@ -114,6 +116,9 @@ class MockServer(Node):
         self.clear_client = self.create_client(
             Trigger, f"{DRIVER}/clear_estop", callback_group=self.driver_clients
         )
+        self.power_client = self.create_client(
+            Trigger, f"{DRIVER}/power_on", callback_group=self.driver_clients
+        )
         self.driver_inject = self.create_client(
             Inject, f"{DRIVER}/inject", callback_group=self.driver_clients
         )
@@ -126,6 +131,7 @@ class MockServer(Node):
             (TaskControl, "task_control", self._task_control),
             (SetLaser, "set_laser", self._set_laser),
             (ResetEstop, "reset_estop", self._reset_estop),
+            (PowerOn, "power_on", self._power_on),
         ]
         for service_type, name, handler in services:
             self.create_service(
@@ -168,8 +174,8 @@ class MockServer(Node):
     def write_model(self, model_id):
         return self.store.write_model(model_id)
 
-    def write_plan(self, plan_id, model_id, surface_ids):
-        return self.store.write_plan(plan_id, model_id, surface_ids)
+    def write_plan(self, plan_id, model_id, surface_ids, partial=False, selected=None, scope=None):
+        return self.store.write_plan(plan_id, model_id, surface_ids, partial, selected, scope)
 
     def set_motion(self, active: bool) -> None:
         if self.motion_client.service_is_ready():
@@ -179,6 +185,10 @@ class MockServer(Node):
 
     def clear_estop(self) -> bool:
         response = self._call(self.clear_client, Trigger.Request(), timeout=0.3)
+        return bool(response is not None and response.success)
+
+    def power_on(self) -> bool:
+        response = self._call(self.power_client, Trigger.Request(), timeout=0.3)
         return bool(response is not None and response.success)
 
     def _call(self, client, request, timeout: float):
@@ -215,7 +225,12 @@ class MockServer(Node):
         return response
 
     def _start_scan(self, request, response):
-        return self._command("start_scan", "", response, self.core.start_scan)
+        return self._command(
+            "start_scan",
+            f"workpiece_type={request.workpiece_type}",
+            response,
+            lambda: self.core.start_scan(request.workpiece_type),
+        )
 
     def _start_plan(self, request, response):
         surfaces = list(request.surface_ids)
@@ -241,6 +256,9 @@ class MockServer(Node):
 
     def _reset_estop(self, request, response):
         return self._command("reset_estop", "", response, self.core.reset_estop)
+
+    def _power_on(self, request, response):
+        return self._command("power_on", "", response, self.core.power_on)
 
     def _inject(self, request, response):
         try:

@@ -15,6 +15,15 @@ export interface TestPlanOptions {
   jointNames?: string[]
   /** 点数，默认 11：0–10 秒，每秒一个点 */
   points?: number
+  /** 失败路径（接口文档 11.1 的 failed_paths），每段为点的位置列表；为空时不写这个字段 */
+  failedPaths?: number[][][]
+  /** 失败路径所属的表面，默认 s2 */
+  failedSurface?: string
+  /** 有有效轨迹的表面（surface_ids），默认 s1、s2 */
+  surfaceIds?: string[]
+  /** 有效选择和规划范围（接口文档 11.1）；不给时不写这两个字段，即旧服务端的规划文件 */
+  selected?: string[]
+  planning?: string[]
 }
 
 /**
@@ -25,6 +34,11 @@ export function testPlanJson({
   modelId,
   jointNames = I5H_JOINTS,
   points = 11,
+  failedPaths = [],
+  failedSurface = 's2',
+  surfaceIds = ['s1', 's2'],
+  selected,
+  planning,
 }: TestPlanOptions): object {
   const last = points - 1
   const times = Array.from({ length: points }, (_, i) => i)
@@ -32,7 +46,9 @@ export function testPlanJson({
     plan_id: planId,
     model_id: modelId,
     frame_id: 'base_link',
-    surface_ids: ['s1', 's2'],
+    ...(selected !== undefined && { selected_surface_ids: selected }),
+    ...(planning !== undefined && { planning_scope_surface_ids: planning }),
+    surface_ids: surfaceIds,
     duration: last,
     joint_trajectory: {
       joint_names: jointNames,
@@ -45,5 +61,11 @@ export function testPlanJson({
         process_on: t <= last / 2,
       })),
     },
+    ...(failedPaths.length > 0 && {
+      failed_paths: failedPaths.map((path) => ({
+        surface_id: failedSurface,
+        points: path.map((p) => ({ p })),
+      })),
+    }),
   }
 }

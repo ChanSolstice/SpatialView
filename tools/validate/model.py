@@ -83,10 +83,17 @@ def validate_model(
             continue
         _check_surface_node(report, glb, index, nodes[index], info, point_blocks)
 
+    # 超过约定的规模时照常导出，APP 照常显示并产生本地警告（10.2）
     if len(info.surfaces) > MAX_SURFACES:
-        report.error("MODEL_SURFACES_LIMIT", f"表面 {len(info.surfaces)} 个，超过 {MAX_SURFACES}")
+        report.warning(
+            "MODEL_SURFACES_LIMIT",
+            f"表面 {len(info.surfaces)} 个，超过约定的 {MAX_SURFACES} 个；APP 照常显示并产生警告",
+        )
     if info.triangles > MAX_TRIANGLES:
-        report.error("MODEL_TRIANGLES_LIMIT", f"三角面 {info.triangles} 个，超过 {MAX_TRIANGLES}")
+        report.warning(
+            "MODEL_TRIANGLES_LIMIT",
+            f"三角面 {info.triangles} 个，超过约定的 {MAX_TRIANGLES} 个；APP 照常显示并产生警告",
+        )
     if info.surfaces and not any(info.surfaces.values()):
         report.warning("MODEL_NOTHING_SELECTABLE", "没有可清洗（selectable 为 true）的表面")
     if point_blocks:

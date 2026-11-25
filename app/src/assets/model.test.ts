@@ -71,6 +71,17 @@ describe('parseModel（接口文档 10.2）', () => {
     expect(model.boundaries.geometry.getAttribute('instanceStart').count).toBe(24)
   })
 
+  it('outline 取指定表面的边界边，忽略重复和模型中没有的表面', async () => {
+    const model = await parseModel(glb(surfaces()), MODEL)
+    expect(edgeCount(model.outline([]))).toBe(0)
+    expect(edgeCount(model.outline(['top_01', 'top_01', 'gone']))).toBe(8)
+    const both = model.outline(['top_00', 'wall_00'])
+    expect(edgeCount(both)).toBe(16)
+    // 与单独取出的边相同
+    expect([...both.subarray(0, 48)]).toEqual([...model.outline(['top_00'])])
+    expect([...both.subarray(48)]).toEqual([...model.outline(['wall_00'])])
+  })
+
   it('表面节点的 surface_id 来自节点 extras', async () => {
     const model = await parseModel(glb(surfaces()), MODEL)
     for (const [id, surface] of model.surfaces) expect(surface.mesh.userData.surface_id).toBe(id)

@@ -16,8 +16,11 @@ from tools.sample_data.path import (
     DEMO_PATH,
     LARGE_PATH,
     SMALL_PATH,
+    FailedPath,
     PathSpec,
     TcpPath,
+    build_failed_paths,
+    build_frustum_failed_paths,
     build_frustum_path,
     build_path,
 )
@@ -44,24 +47,45 @@ class SampleError(RuntimeError):
     """样例无法生成，例如工件超出机械臂的工作范围。"""
 
 
+# 表面、TCP 路径、规划的表面和失败路径
+Built = tuple[list[Surface], TcpPath, list[str], list[FailedPath]]
+
+
 @dataclass(frozen=True)
 class SampleSize:
     name: str
-    build: Callable[[], tuple[list[Surface], TcpPath, list[str]]]  # 表面、TCP 路径和规划的表面
+    build: Callable[[], Built]
     model_id: str
     plan_id: str
     coarse_stride: int = COARSE_STRIDE
 
 
-def _block(workpiece: WorkpieceSpec, path: PathSpec) -> tuple[list[Surface], TcpPath, list[str]]:
-    """曲面块体：路径覆盖全部顶面表面。"""
+def _block(workpiece: WorkpieceSpec, path: PathSpec) -> Built:
+    """曲面块体：路径覆盖全部顶面表面，失败路径在背向机械臂的侧面上。"""
     surfaces = build_surfaces(workpiece)
     planned = [s.surface_id for s in surfaces if s.surface_id.startswith("top_")]
-    return surfaces, build_path(workpiece, path), planned
+    failed = build_failed_paths(workpiece, path)
+    return surfaces, build_path(workpiece, path), planned, failed
 
 
-def _frustum() -> tuple[list[Surface], TcpPath, list[str]]:
-    return build_frustum_surfaces(DEMO), build_frustum_path(DEMO, DEMO_PATH), DEMO_PATH.surface_ids
+def _frustum() -> Built:
+    return (
+        build_frustum_surfaces(DEMO),
+        build_frustum_path(DEMO, DEMO_PATH),
+        DEMO_PATH.surface_ids,
+        build_frustum_failed_paths(DEMO, DEMO_PATH),
+    )
+
+
+def failed_paths_json(failed: list[FailedPath]) -> list[dict]:
+    """规划文件中 failed_paths 的格式（接口文档 11.1）：每段只有 TCP 位置 p。"""
+    return [
+        {
+            "surface_id": f.surface_id,
+            "points": [{"p": p} for p in np.round(f.positions, 6).tolist()],
+        }
+        for f in failed
+    ]
 
 
 SIZES = {
@@ -136,7 +160,10 @@ def build_plan(
     q: np.ndarray,
     model_id: str,
     plan_id: str,
+    scope: list[str] | None = None,
 ) -> dict:
+    """scope 为规划范围，默认与 surface_ids 相同；样例没有连续扩展，有效选择与规划范围相同（接口文档 11.1）。"""
+    scope = list(scope if scope is not None else surface_ids)
     t = np.round(tcp.t, 4)
     quaternions = np.round(quaternion_xyzw(tcp.rotations), 6)
     positions = np.round(tcp.positions, 6)
@@ -145,6 +172,8 @@ def build_plan(
         "plan_id": plan_id,
         "model_id": model_id,
         "frame_id": "base_link",
+        "selected_surface_ids": scope,
+        "planning_scope_surface_ids": scope,
         "surface_ids": surface_ids,
         "duration": float(t[-1]),
         "joint_trajectory": {
@@ -182,17 +211,26 @@ def generate(
     tcp_link: str = DEFAULT_TCP_LINK,
     model_id: str | None = None,
     plan_id: str | None = None,
+    with_failed_paths: bool = False,
 ) -> dict:
-    """生成一组样例，写入 out/models/<model_id>.glb、out/plans/<plan_id>.json 和 out/manifest.json。"""
+    """生成一组样例，写入 out/models/<model_id>.glb、out/plans/<plan_id>.json、out/manifest.json，以及
+    失败路径 out/failed_paths.json（mock 服务端在部分无法规划时写入规划文件）。with_failed_paths 为 True 时，
+    规划文件中也带上失败路径，失败路径的表面也算作选择和规划范围。"""
     size = SIZES[size_name]
     model_id = model_id or size.model_id
     plan_id = plan_id or size.plan_id
     robot = parse_urdf(urdf)
     chain = robot.chain(tcp_link)
 
-    surfaces, tcp, planned = size.build()
+    surfaces, tcp, planned, failed = size.build()
     q = solve_joint_trajectory(chain, tcp, size.coarse_stride)
-    plan = build_plan(planned, chain, tcp, q, model_id, plan_id)
+    failed_json = failed_paths_json(failed)
+    scope = planned
+    if with_failed_paths:
+        scope = list(dict.fromkeys(planned + [f.surface_id for f in failed]))
+    plan = build_plan(planned, chain, tcp, q, model_id, plan_id, scope)
+    if with_failed_paths:
+        plan["failed_paths"] = failed_json
 
     rounded = np.array([p["positions"] for p in plan["joint_trajectory"]["points"]])
     path_points = np.array([p["p"] for p in plan["tcp_path"]["points"]])
@@ -205,6 +243,10 @@ def generate(
     (out / model_file).write_bytes(build_model(surfaces, model_id))
     (out / plan_file).write_text(
         json.dumps(plan, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+    )
+    failed_file = Path("failed_paths.json")
+    (out / failed_file).write_text(
+        json.dumps(failed_json, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
     manifest = {
         "size": size.name,
@@ -225,6 +267,9 @@ def generate(
         "max_joint_step": float(np.abs(np.diff(q, axis=0)).max()),
         "max_fk_deviation": fk_deviation,
         "process_intervals": process_intervals(np.round(tcp.t, 4), tcp.process),
+        "failed_paths": failed_file.as_posix(),
+        "failed_points": sum(len(f.positions) for f in failed),
+        "plan_has_failed_paths": with_failed_paths,
     }
     (out / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"

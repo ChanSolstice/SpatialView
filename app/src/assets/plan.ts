@@ -22,10 +22,24 @@ export interface Arrows {
   times: Float64Array
 }
 
+/**
+ * 规划文件中的表面集合（接口文档 11.1、11.2）：有效选择和规划范围。规划范围包括有效选择和连续扩展进来的表面，
+ * 也包括 surfaceIds 和失败路径所在的表面。
+ */
+export interface PlanScope {
+  /** 有效选择（selected_surface_ids）：操作员的选择，包括整个表面都没有生成轨迹的 */
+  selected: string[]
+  /** 规划范围（planning_scope_surface_ids） */
+  planning: string[]
+}
+
 export interface PlanData {
   planId: string
   modelId: string
+  /** 有有效轨迹的表面（surface_ids），与 plan_surface_ids 一致 */
   surfaceIds: string[]
+  /** 表面集合；旧服务端的规划文件没有这两个字段时为 null（接口文档 11.2） */
+  scope: PlanScope | null
   duration: number
   jointNames: string[]
   /** 关节轨迹各点的时间，严格递增 */
@@ -38,13 +52,13 @@ export interface PlanData {
   processEnds: Float64Array
   /** 空行程段，每段 6 个数 */
   travel: Float32Array
+  /** 失败路径（failed_paths）：每段路径中相邻两点连成的线段，每段 6 个数；不执行，不参与进度着色 */
+  failed: Float32Array
   processArrows: Arrows
   travelArrows: Arrows
-  /** 方向箭头的间距，米；箭头的大小与它成比例（前端UI设计第 5 节） */
-  arrowSpacing: number
   start: Vec3
   end: Vec3
-  /** TCP 路径点的包围盒 */
+  /** TCP 路径点和失败路径点的包围盒 */
   min: Vec3
   max: Vec3
 }
@@ -57,6 +71,7 @@ export function planBuffers(data: PlanData): ArrayBuffer[] {
     data.process,
     data.processEnds,
     data.travel,
+    data.failed,
     data.processArrows.positions,
     data.processArrows.directions,
     data.processArrows.times,
@@ -121,6 +136,85 @@ function readJoints(trajectory: unknown): {
     positions.set(values, i * joints)
   })
   return { names, times, positions }
+}
+
+/**
+ * 失败路径（接口文档 11.1 的 failed_paths）：可选，没有时省略、为空数组或 null。每段的点按顺序连线，
+ * 段与段之间不连。点数不足 2 个的段画不出线，这里不报错，由文件校验工具检查（11.2）。
+ * 同时返回各段所属的表面，用于检查它们在规划范围内；没有 surface_id 的段记为空字符串。
+ */
+function readFailed(value: unknown): { positions: Float32Array; surfaceIds: string[] } {
+  if (value === undefined || value === null) {
+    return { positions: new Float32Array(0), surfaceIds: [] }
+  }
+  if (!Array.isArray(value)) throw new PlanError('规划文件的失败路径 failed_paths 不是数组')
+  const surfaceIds = value.map((path) =>
+    isRecord(path) && typeof path.surface_id === 'string' ? path.surface_id : '',
+  )
+  const paths = value.map((path, i) => {
+    const list = isRecord(path) ? path.points : undefined
+    if (!Array.isArray(list)) throw new PlanError(`失败路径第 ${i + 1} 段缺少 points`)
+    list.forEach((point, j) => {
+      const p = isRecord(point) ? point.p : undefined
+      if (!Array.isArray(p) || p.length !== 3 || !p.every(isNumber)) {
+        throw new PlanError(`失败路径第 ${i + 1} 段第 ${j + 1} 个点的位置 p 不是 3 个数`)
+      }
+    })
+    return list as { p: Vec3 }[]
+  })
+  const count = paths.reduce((sum, list) => sum + Math.max(0, list.length - 1), 0)
+  const failed = new Float32Array(count * 6)
+  let o = 0
+  for (const list of paths) {
+    for (let k = 0; k + 1 < list.length; k++) {
+      failed.set((list[k] as { p: Vec3 }).p, o)
+      failed.set((list[k + 1] as { p: Vec3 }).p, o + 3)
+      o += 6
+    }
+  }
+  return { positions: failed, surfaceIds }
+}
+
+function readIds(value: unknown, field: string): string[] {
+  if (!Array.isArray(value) || !value.every((id): id is string => typeof id === 'string')) {
+    throw new PlanError(`规划文件的 ${field} 不是字符串数组`)
+  }
+  return [...new Set(value)]
+}
+
+/**
+ * 表面集合（接口文档 11.2）：两个字段都没有时为 null，按旧服务端的规划文件处理；只有一个，或者有效选择、
+ * surface_ids、失败路径的表面不在规划范围内，视为加载失败。表面是否属于模型、能否清洗不在这里检查。
+ */
+function readScope(
+  json: Record<string, unknown>,
+  surfaceIds: readonly string[],
+  failedSurfaceIds: readonly string[],
+): PlanScope | null {
+  const hasSelected = json.selected_surface_ids !== undefined
+  const hasPlanning = json.planning_scope_surface_ids !== undefined
+  if (!hasSelected && !hasPlanning) return null
+  if (!hasSelected || !hasPlanning) {
+    throw new PlanError(
+      `规划文件只有 ${hasSelected ? 'selected_surface_ids' : 'planning_scope_surface_ids'}，` +
+        'selected_surface_ids 和 planning_scope_surface_ids 应同时给出',
+    )
+  }
+  const selected = readIds(json.selected_surface_ids, 'selected_surface_ids')
+  const planning = readIds(json.planning_scope_surface_ids, 'planning_scope_surface_ids')
+  const inScope = new Set(planning)
+  const outside = (ids: readonly string[]) => ids.find((id) => !inScope.has(id))
+  const checks: [string | undefined, string][] = [
+    [outside(selected), '有效选择 selected_surface_ids 中的表面'],
+    [outside(surfaceIds), 'surface_ids 中的表面'],
+    [outside(failedSurfaceIds), '失败路径的表面'],
+  ]
+  for (const [id, what] of checks) {
+    if (id !== undefined) {
+      throw new PlanError(`${what} ${id || '（空）'} 不在规划范围 planning_scope_surface_ids 中`)
+    }
+  }
+  return { selected, planning }
 }
 
 class ArrowBuilder {
@@ -236,13 +330,19 @@ export function parsePlan(
     next -= length
   }
 
+  const { positions: failed, surfaceIds: failedSurfaceIds } = readFailed(json.failed_paths)
+  const scope = readScope(json, surfaceIds, failedSurfaceIds)
+
+  // 包围盒也包括失败路径，框选视角时红色路径不被裁掉
   const min: Vec3 = [Infinity, Infinity, Infinity]
   const max: Vec3 = [-Infinity, -Infinity, -Infinity]
-  for (let i = 0; i < xyz.length; i += 3) {
-    for (const axis of [0, 1, 2] as const) {
-      const v = xyz[i + axis] as number
-      if (v < min[axis]) min[axis] = v
-      if (v > max[axis]) max[axis] = v
+  for (const values of [xyz, failed]) {
+    for (let i = 0; i < values.length; i += 3) {
+      for (const axis of [0, 1, 2] as const) {
+        const v = values[i + axis] as number
+        if (v < min[axis]) min[axis] = v
+        if (v > max[axis]) max[axis] = v
+      }
     }
   }
   const pointAt = (i: number): Vec3 => [
@@ -255,6 +355,7 @@ export function parsePlan(
     planId: expected.planId,
     modelId: expected.modelId,
     surfaceIds,
+    scope,
     duration,
     jointNames: joints.names,
     jointTimes: joints.times,
@@ -262,9 +363,9 @@ export function parsePlan(
     process,
     processEnds,
     travel,
+    failed,
     processArrows: processArrows.build(),
     travelArrows: travelArrows.build(),
-    arrowSpacing,
     start: pointAt(0),
     end: pointAt(n - 1),
     min,

@@ -8,21 +8,23 @@ import { useRuntime } from './runtimeContext.ts'
 export function EStopButton() {
   const { commands } = useRuntime()
   return (
-    <div className="estop-area">
-      <button
-        type="button"
-        className="estop"
-        data-testid="btn-estop"
-        onPointerDown={() => void commands.estop()}
-        onClick={(event) => {
-          // 键盘和辅助功能触发的点击没有对应的 pointerdown（detail 为 0）
-          if (event.detail === 0) void commands.estop()
-        }}
-      >
-        <Icon name="estop" />
-        急停
-      </button>
+    <>
+      <div className="estop-area">
+        <button
+          type="button"
+          className="estop"
+          data-testid="btn-estop"
+          onPointerDown={() => void commands.estop()}
+          onClick={(event) => {
+            // 键盘和辅助功能触发的点击没有对应的 pointerdown（detail 为 0）
+            if (event.detail === 0) void commands.estop()
+          }}
+        >
+          <Icon name="estop" />
+          急停
+        </button>
+      </div>
       <div className="estop-caption">软件急停不能替代设备急停</div>
-    </div>
+    </>
   )
 }

@@ -19,8 +19,8 @@
 | `app/` | APP：Vite + React + TypeScript，three.js 三维场景，Capacitor 打包 |
 | `ros2_ws/src/` | ROS 2 Humble 包：接口定义包 `spatialview_msgs`、mock 服务端 `spatialview_mock` |
 | `deploy/` | 开发用服务端环境：rosbridge、mock、nginx |
-| `tools/` | 样例数据生成、文件校验、接口检查、8 小时测试 |
-| `scripts/` | 本地检查脚本、Android 打包脚本 |
+| `tools/` | 样例数据生成、文件校验、接口检查、8 小时测试、网页版交付前检查 |
+| `scripts/` | 本地检查脚本、Android 和网页版的打包脚本 |
 | `docs/` | 文档、图和静态原型 |
 
 ## 环境要求
@@ -31,7 +31,7 @@
 | uv | 0.12 及以上 | Python 3.10 环境，会自动下载 Python 3.10 |
 | Docker | 带 compose 插件 | ROS 2 Humble 的构建和开发环境（阶段 3 起） |
 | JDK、Android SDK | JDK 21；SDK 的 platform 36 和 build-tools | 打包 Android APP，`ANDROID_HOME` 默认为 `~/Android/Sdk` |
-| Google Chrome | — | 8 小时测试（本机无头 Chrome） |
+| Google Chrome | — | 8 小时测试、网页版交付前检查（本机无头 Chrome） |
 | actionlint | 可选 | 本地检查 CI 工作流 |
 
 ## 常用命令
@@ -64,6 +64,11 @@ scripts/ros.sh ros2 interface show spatialview_msgs/msg/SystemState
 scripts/build-apk.sh debug
 scripts/build-apk.sh release
 
+# 网页版：没有平板时在 Ubuntu 电脑上用 Chrome 测试服务端，压缩包输出到 delivery/
+scripts/build-web.sh
+# 网页版的交付前检查：需要开发环境，用法见 tools/README.md
+uv run python -m tools.web_check delivery/spatialview-web-<版本>.tar.gz --password-file <密码文件> --out <输出目录>
+
 # 与 CI 相同的全部检查
 ./scripts/check.sh
 ```
@@ -83,10 +88,18 @@ scripts/build-apk.sh release
 
 当前用户没有 Docker 权限时，在命令前加 `DOCKER="sudo docker"`，例如 `DOCKER="sudo docker" ./scripts/check.sh`。
 
+### 网页版打包
+
+网页版与 APK 中的页面相同，用于没有平板时在 Ubuntu 电脑上用 Chrome 测试服务端（架构设计 5.10）。`scripts/build-web.sh` 执行 `npm run build`，把页面和 `app/web/` 中的启动脚本、说明打成压缩包，默认输出到 `delivery/spatialview-web-<版本>.tar.gz`，最后输出 SHA-256，交付时记录。启用工程入口的环境变量与 Android 打包相同。
+
+启动脚本在本机 127.0.0.1 上提供页面，用 Chrome 或 Chromium 的应用窗口打开，用法见 [app/web/README.md](app/web/README.md)。
+
+交付前用 `tools/web_check` 检查压缩包（[tools/README.md](tools/README.md)）：用启动脚本打开页面，连接本机开发环境，检查工程入口、版本号、规划范围、中断后继续、连续清洗和轨迹动画。交付记录在[阶段规划](docs/阶段规划.md) 4.4。
+
 ## 分支
 
 | 分支 | 用途 |
 | --- | --- |
 | `main` | 稳定版本 |
-| `dev` | 开发主线 |
+| `dev` | 开发主线，GitHub 上的默认分支 |
 | `phase/<编号>-<名称>` | 每个阶段一个分支，完成并验证后合并回 `dev`；进度记录在[阶段规划](docs/阶段规划.md) |
